@@ -431,7 +431,6 @@ const ProductYonetimi: React.FC = () => {
                     ) : section.images && section.images.length === 1 ? (
                       <img
                         src={decodeImage(section.images[0].imageData)}
-                        alt="Image"
                         className="h-24 w-24 object-cover rounded-md inline-block mr-1"
                       />
                     ) : null}

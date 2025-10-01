@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Layout from '../components/Layout';
 import { useFormik } from 'formik';
-import * as Yup from 'yup';
 import pako from 'pako';
 import api from '../api';
 import Swal from 'sweetalert2'; // SweetAlert2'yi ekledik
@@ -154,13 +153,6 @@ const ProjectYonetimi: React.FC = () => {
       }
     }
   });
-  const logFormData = (formData: FormData) => {
-    const obj: { [key: string]: any } = {};
-    formData.forEach((value, key) => {
-      obj[key] = value;
-    });
-    console.log(obj); // JSON formatında gösterir
-  };
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {

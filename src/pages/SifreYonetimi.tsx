@@ -13,7 +13,6 @@ interface User {
 const SifreYonetimi: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -100,9 +99,6 @@ const SifreYonetimi: React.FC = () => {
     <Layout>
       <div className="max-w-2xl mx-auto bg-white p-6 rounded-xl shadow space-y-6">
         <h1 className="text-2xl font-bold">Kullanıcı Şifresi Değiştir</h1>
-
-        {message && <p className="text-sm text-green-600">{message}</p>}
-
         <div className="mb-4">
           <label className="block font-semibold mb-1">Kullanıcı Seç</label>
           <select
