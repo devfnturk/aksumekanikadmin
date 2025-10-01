@@ -266,8 +266,8 @@ const ProductYonetimi: React.FC = () => {
         });
       }
 
-      if (existing.tableImage?.[0]?.imageData) {
-        formData.append('tableImage', dataURLToFile(decodeImage(existing.tableImage[0].imageData)));
+      if (existing.tableImage?.imageData) { // Değişiklik burada: [0] kaldırıldı
+        formData.append('tableImage', dataURLToFile(decodeImage(existing.tableImage.imageData)));
       }
 
       await api.put(`/products/${section.id}`, formData, {
@@ -364,7 +364,7 @@ const ProductYonetimi: React.FC = () => {
                   key={idx}
                   src={img}
                   className="h-24 inline-block rounded mr-2"
-                  alt={`Main ${idx}`}
+                  alt={`Ana görsel ${idx + 1}`} // Anlamlı alt metni
                 />
               ))}
               <label className="md:col-span-2">Sertifikalar (çoklu):
@@ -374,7 +374,7 @@ const ProductYonetimi: React.FC = () => {
                 }} />
               </label>
               {certificatesBase64.map((img, idx) => (
-                <img key={idx} src={img} className="h-16 inline-block rounded mr-2" alt={`Cert ${idx}`} />
+                <img key={idx} src={img} className="h-16 inline-block rounded mr-2" alt={`Sertifika ${idx + 1}`} />
               ))}
               <label className="md:col-span-2">Tablo Görseli (tekli):
                 <input type="file" accept="image/*" onChange={(e) => {
@@ -383,7 +383,7 @@ const ProductYonetimi: React.FC = () => {
                 }} />
               </label>
               {tableImageBase64 && (
-                <img src={tableImageBase64} className="h-24 rounded" alt="Table" />
+                <img src={tableImageBase64} className="h-24 rounded" alt="Tablo görseli" /> 
               )}
             </div>
 
@@ -432,6 +432,7 @@ const ProductYonetimi: React.FC = () => {
                       <img
                         src={decodeImage(section.images[0].imageData)}
                         className="h-24 w-24 object-cover rounded-md inline-block mr-1"
+                        alt={`Ürün görseli - ${section.title}`} // Anlamlı alt metni
                       />
                     ) : null}
                   </td>
@@ -442,13 +443,13 @@ const ProductYonetimi: React.FC = () => {
                     ) : section.certificates && section.certificates.length === 1 ? (
                       <img
                         src={decodeImage(section.certificates[0].imageData)}
-                        alt="Certificate"
+                        alt={`Sertifika görseli - ${section.title}`} // Anlamlı alt metni
                         className="h-24 w-24 object-cover rounded-md inline-block mr-1"
                       />
                     ) : null}
                   </td>
                   <td className="p-3 border">
-                    {section.tableImage?.imageData && <img src={decodeImage(section.tableImage.imageData)} alt="banner" className="h-24 w-24 object-cover rounded-md" />}
+                    {section.tableImage?.imageData && <img src={decodeImage(section.tableImage.imageData)} alt={`Tablo görseli - ${section.title}`} className="h-24 w-24 object-cover rounded-md" />} {/* Anlamlı alt metni */}
                   </td>
                   <td className="p-3 border">
                     <span className={section.isActive ? 'text-green-600 font-semibold' : 'text-red-500'}>
