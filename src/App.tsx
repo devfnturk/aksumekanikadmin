@@ -55,11 +55,9 @@ const LoginPage: React.FC = () => {
         password
       });
       console.log("response.data",response.data)
-      // Backend başarılı yanıt döndüyse (örneğin token varsa)
       if (response.status === 200) {
         const data = response.data;
         localStorage.setItem('username', username);
-        localStorage.setItem('token', data.token); // JWT token gibi bir şey döndüyse
   
         navigate('/home');
       } else {
