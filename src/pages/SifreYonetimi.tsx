@@ -17,7 +17,7 @@ const SifreYonetimi: React.FC = () => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const response = await api.get('https://aksu-mekanik-9bhv.onrender.com/users');
+        const response = await api.get('/users');
         setUsers(response.data);
       } catch (error) {
         console.error('Kullanıcılar alınamadı:', error);
@@ -57,7 +57,7 @@ const SifreYonetimi: React.FC = () => {
       }
 
       try {
-        await api.put(`https://aksu-mekanik-9bhv.onrender.com/users/${selectedUser.id}`, {
+        await api.put(`/users/${selectedUser.id}`, {
           username: selectedUser.username,
           password: values.newPassword,
           isActive: true,

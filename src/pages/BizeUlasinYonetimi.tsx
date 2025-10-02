@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
-import axios from 'axios';
+import api from '../api';
 import Swal from 'sweetalert2';
 type Section = {
     id: number;
@@ -52,7 +52,7 @@ const BizeUlasinYonetimi: React.FC = () => {
         const fetchMessages = async () => {
             setLoading(true);
             try {
-                const response = await axios.get('https://aksu-mekanik-9bhv.onrender.com/contact-us', {
+                const response = await api.get('/contact-us', {
                     headers: {
                         accept: '*/*'
                     }
@@ -116,7 +116,7 @@ const BizeUlasinYonetimi: React.FC = () => {
         try {
             // Silme işlemini her bir ID için yapıyoruz
             for (const id of selectedIds) {
-                const response = await axios.delete(`https://aksu-mekanik-9bhv.onrender.com/contact-us/${id}`, {
+                const response = await api.delete(`/contact-us/${id}`, {
                     headers: {
                         accept: '*/*'
                     }

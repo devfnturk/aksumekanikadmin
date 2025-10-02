@@ -50,7 +50,7 @@ const LoginPage: React.FC = () => {
     e.preventDefault();
   
     try {
-      const response = await api.post('https://aksu-mekanik-9bhv.onrender.com/auth/login', {
+      const response = await api.post('/auth/login', {
         username,
         password
       });

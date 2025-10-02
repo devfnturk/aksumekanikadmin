@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
-import axios from 'axios';
+import api from '../api';
 import Swal from 'sweetalert2';
 const IletisimYonetimi: React.FC = () => {
     const [adress, setAdress] = useState('');
@@ -16,7 +16,7 @@ const IletisimYonetimi: React.FC = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await axios.get('https://aksu-mekanik-9bhv.onrender.com/communications');
+                const response = await api.get('/communications');
                 const data = response.data[0]; // Assuming the data array contains a single item
 
                 if (data) {
@@ -54,8 +54,8 @@ const IletisimYonetimi: React.FC = () => {
             let response;
 
             if (editMode && id) {
-                response = await axios.put(
-                    `https://aksu-mekanik-9bhv.onrender.com/communications/${id}`,
+                response = await api.put(
+                    `/communications/${id}`,
                     updatedData,
                     {
                         headers: {
@@ -65,8 +65,8 @@ const IletisimYonetimi: React.FC = () => {
                     }
                 );
             } else {
-                response = await axios.post(
-                    'https://aksu-mekanik-9bhv.onrender.com/communications',
+                response = await api.post(
+                    '/communications',
                     updatedData,
                     {
                         headers: {
