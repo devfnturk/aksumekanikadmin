@@ -42,6 +42,8 @@ const ReferansYonetimi: React.FC = () => {
   const [editId, setEditId] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string>('');
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [modalContent, setModalContent] = useState<string | null>(null); // Metin modal içeriği
+  const [imageModalContent, setImageModalContent] = useState<string | null>(null); // Görsel modal içeriği
 
   useEffect(() => {
     fetchSections();
@@ -102,10 +104,25 @@ const ReferansYonetimi: React.FC = () => {
             isActive: values.isActive,
           };
           formData.append('request', new Blob([JSON.stringify(requestObjectPut)], { type: 'application/json' }));
-          if (imageBase64) {
+
+          // Eğer yeni bir resim yüklenmişse (imageBase64 bir data URL ise)
+          if (imageBase64 && imageBase64.startsWith('data:')) {
             const file = dataURLToFile(imageBase64);
             formData.append('files', file);
+          } else {
+            // Eğer resim değişmediyse, mevcut resim verisini tekrar ekle
+            const currentSection = sections.find(s => s.id === editId);
+            if (currentSection && currentSection.image && currentSection.image[0]?.imageData) {
+              const decodedImgData = decodeImage(currentSection.image[0].imageData);
+              if (decodedImgData) {
+                const file = dataURLToFile(decodedImgData);
+                formData.append('files', file);
+              }
+            }
+            // Eğer imageBase64 boşaltılmışsa ve mevcut resim de yoksa, resim silinir.
+            // API'nizin bu durumu nasıl ele aldığına göre davranır.
           }
+
 
           await api.put(`/references/${editId}`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
@@ -114,7 +131,7 @@ const ReferansYonetimi: React.FC = () => {
             title: 'Başarılı!',
             text: 'Referans güncellendi.',
             icon: 'success',
-            showConfirmButton: true, // Bu yoksa buton gözükmez
+            showConfirmButton: true,
             customClass: {
               actions: 'flex justify-center gap-4',
               confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
@@ -126,11 +143,26 @@ const ReferansYonetimi: React.FC = () => {
           const requestObjectPost = {
             title: values.title,
             link: values.link,
+            isActive: values.isActive,
           };
           formData.append('request', new Blob([JSON.stringify(requestObjectPost)], { type: 'application/json' }));
-          if (imageBase64) {
+
+          // Yeni eklemede resim zorunlu
+          if (imageBase64 && imageBase64.startsWith('data:')) {
             const file = dataURLToFile(imageBase64);
             formData.append('files', file);
+          } else {
+            Swal.fire({
+              title: 'Uyarı!',
+              text: 'Lütfen bir referans görseli yükleyin.',
+              icon: 'warning',
+              showConfirmButton: true,
+              customClass: {
+                actions: 'flex justify-center gap-4',
+                confirmButton: 'bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600',
+              },
+            });
+            return;
           }
 
           await api.post('/references', formData, {
@@ -140,7 +172,7 @@ const ReferansYonetimi: React.FC = () => {
             title: 'Başarılı!',
             text: 'Referans eklendi.',
             icon: 'success',
-            showConfirmButton: true, // Bu yoksa buton gözükmez
+            showConfirmButton: true,
             customClass: {
               actions: 'flex justify-center gap-4',
               confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
@@ -159,7 +191,7 @@ const ReferansYonetimi: React.FC = () => {
           title: 'Hata!',
           text: 'İşlem gerçekleştirilemedi.',
           icon: 'error',
-          showConfirmButton: true, // Bu yoksa buton gözükmez
+          showConfirmButton: true,
           customClass: {
             actions: 'flex justify-center gap-4',
             confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
@@ -186,7 +218,7 @@ const ReferansYonetimi: React.FC = () => {
       link: section.link,
       isActive: section.isActive,
     });
-    setImageBase64(section.image?.[0]?.imageData ? decodeImage(section.image[0].imageData) : '');
+    setImageBase64(getDecodedImage(section) || ''); // Mevcut resmi yükle
     setEditId(section.id);
     setIsFormOpen(true);
   };
@@ -215,7 +247,7 @@ const ReferansYonetimi: React.FC = () => {
         title: 'Başarılı!',
         text: 'Referans silindi.',
         icon: 'success',
-        showConfirmButton: true, // Bu yoksa buton gözükmez
+        showConfirmButton: true,
         customClass: {
           actions: 'flex justify-center gap-4',
           confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
@@ -227,7 +259,7 @@ const ReferansYonetimi: React.FC = () => {
         title: 'Hata!',
         text: 'İşlem gerçekleştirilemedi.',
         icon: 'error',
-        showConfirmButton: true, // Bu yoksa buton gözükmez
+        showConfirmButton: true,
         customClass: {
           actions: 'flex justify-center gap-4',
           confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
@@ -266,8 +298,11 @@ const ReferansYonetimi: React.FC = () => {
       formData.append('request', new Blob([JSON.stringify(requestObject)], { type: 'application/json' }));
 
       if (existing.image && existing.image[0]?.imageData) {
-        const file = dataURLToFile(decodeImage(existing.image[0].imageData));
-        formData.append('files', file);
+        const decodedImgData = decodeImage(existing.image[0].imageData);
+        if (decodedImgData) {
+          const file = dataURLToFile(decodedImgData);
+          formData.append('files', file);
+        }
       }
 
       await api.put(`/references/${id}`, formData, {
@@ -279,7 +314,7 @@ const ReferansYonetimi: React.FC = () => {
         title: 'Başarılı!',
         text: `Durum ${newState ? 'aktif' : 'pasif'} olarak güncellendi.`,
         icon: 'success',
-        showConfirmButton: true, // Bu yoksa buton gözükmez
+        showConfirmButton: true,
         customClass: {
           actions: 'flex justify-center gap-4',
           confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
@@ -291,7 +326,7 @@ const ReferansYonetimi: React.FC = () => {
         title: 'Hata!',
         text: 'Durum güncellenemedi.',
         icon: 'error',
-        showConfirmButton: true, // Bu yoksa buton gözükmez
+        showConfirmButton: true,
         customClass: {
           actions: 'flex justify-center gap-4',
           confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
@@ -306,13 +341,48 @@ const ReferansYonetimi: React.FC = () => {
     return encoded ? decodeImage(encoded) : null;
   };
 
+  // Metin kısaltma fonksiyonu
+  const truncateText = (text: string, maxLength: number) => {
+    if (text.length > maxLength) {
+      return text.substring(0, maxLength) + '...';
+    }
+    return text;
+  };
+
+  // Metin modal açma fonksiyonu
+  const openTextModalWithContent = (content: string) => {
+    setModalContent(content);
+  };
+
+  // Metin modal kapatma fonksiyonu
+  const closeTextModal = () => {
+    setModalContent(null);
+  };
+
+  // Görsel modal açma fonksiyonu
+  const openImageModal = (imageUrl: string) => {
+    setImageModalContent(imageUrl);
+  };
+
+  // Görsel modal kapatma fonksiyonu
+  const closeImageModal = () => {
+    setImageModalContent(null);
+  };
+
   return (
     <Layout>
       <div className="p-6 space-y-6">
         <h1 className="text-2xl font-bold">Referans Yönetimi</h1>
         <div className="text-right">
           <button
-            onClick={() => setIsFormOpen(!isFormOpen)}
+            onClick={() => {
+              setIsFormOpen(!isFormOpen);
+              if (isFormOpen) {
+                formik.resetForm();
+                setImageBase64('');
+                setEditId(null);
+              }
+            }}
             className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition"
           >
             {isFormOpen ? 'Formu Gizle' : 'Yeni Ekle'}
@@ -358,7 +428,7 @@ const ReferansYonetimi: React.FC = () => {
               <label className="block font-semibold mb-1">Resim Yükle</label>
               <input type="file" accept="image/*" onChange={handleImageUpload} />
               {imageBase64 && (
-                <img src={imageBase64} alt="Yüklenen görsel" className="h-32 mt-2 rounded" />
+                <img src={imageBase64} alt="Yüklenen görsel" className="h-32 mt-2 rounded object-cover" />
               )}
             </div>
             <div className="md:col-span-2">
@@ -386,15 +456,35 @@ const ReferansYonetimi: React.FC = () => {
             <tbody>
               {sections.map((section) => (
                 <tr key={section.id} className="text-center">
-                  <td className="p-3 border">{section.title}</td>
-                  <td className="p-3 border">{section.link}</td>
-                  <td className="p-3 border space-x-2">
+                  <td
+                    className="p-3 border text-left max-w-xs truncate cursor-pointer hover:underline"
+                    onDoubleClick={() => openTextModalWithContent(section.title)}
+                    title={section.title.length > 50 ? section.title : undefined}
+                  >
+                    {truncateText(section.title, 50)}
+                  </td>
+                  <td
+                    className="p-3 border text-left max-w-xs truncate cursor-pointer hover:underline"
+                    onDoubleClick={() => openTextModalWithContent(section.link)}
+                    title={section.link.length > 50 ? section.link : undefined}
+                  >
+                    {truncateText(section.link, 50)}
+                  </td>
+                  <td className="p-3 border">
                     {section.image && Array.isArray(section.image) && section.image[0]?.imageData ? (
-                      <img
-                        src={getDecodedImage(section) || ''}
-                        alt="Referans görseli"
-                        className="w-16 h-10 object-cover mx-auto rounded"
-                      />
+                      <div
+                        className="relative w-16 h-10 mx-auto rounded overflow-hidden group cursor-pointer"
+                        onClick={() => openImageModal(getDecodedImage(section) || '')}
+                      >
+                        <img
+                          src={getDecodedImage(section) || ''}
+                          alt="Referans görseli"
+                          className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-110"
+                        />
+                        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          <span className="text-white text-xs font-semibold">Büyüt</span>
+                        </div>
+                      </div>
                     ) : (
                       <span className="text-gray-400 italic">Yok</span>
                     )}
@@ -436,6 +526,45 @@ const ReferansYonetimi: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Metin Modal Bileşeni */}
+      {modalContent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full"> {/* max-h, flex-col gibi kaydırma çubuğu ile ilgili sınıfları kaldırdık */}
+            <h3 className="text-xl font-bold mb-4">Tam İçerik</h3>
+            {/* Metin için div veya p etiketine break-all sınıfını ekleyin */}
+            <div className="text-gray-800 break-all"> {/* break-all eklendi, overflow-y-auto ve flex-grow kaldırıldı */}
+              <p>{modalContent}</p>
+            </div>
+            <div className="mt-6 text-right">
+              <button
+                onClick={closeTextModal}
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Görsel Modal Bileşeni */}
+      {imageModalContent && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="relative bg-white p-4 rounded-lg shadow-xl max-w-3xl max-h-[90vh] overflow-hidden">
+            <button
+              onClick={closeImageModal}
+              className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-2 hover:bg-red-700 z-10"
+              aria-label="Görseli Kapat"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <img src={imageModalContent} alt="Büyütülmüş Referans Görseli" className="max-w-full max-h-full object-contain" />
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };

@@ -16,6 +16,7 @@ const DataOfAksuYonetimi: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [form, setForm] = useState({ count: 0, title: '', enTitle: '', isActive: false });
   const [editId, setEditId] = useState<string | null>(null);
+  const [modalContent, setModalContent] = useState<string | null>(null); // Modal içeriği için state
 
   useEffect(() => {
     const fetchSections = async () => {
@@ -100,7 +101,8 @@ const DataOfAksuYonetimi: React.FC = () => {
       try {
         if (editId !== null) {
           const updatedSection = { id: editId, ...sectionData };
-          await api.post(`/data`, updatedSection);
+          await api.post(`/data`, updatedSection); // API'niz PUT yerine POST kullanıyorsa, buna dikkat edin.
+                                                   // Genellikle güncellemeler için PUT veya PATCH kullanılır.
 
           setSections((prev) =>
             prev.map((section) =>
@@ -119,9 +121,11 @@ const DataOfAksuYonetimi: React.FC = () => {
 
           setEditId(null);
         } else {
-          const newSection = { id: Date.now().toString(), ...sectionData };
-          const response = await api.post('/data', newSection);
-          setSections((prev) => [...prev, { ...newSection, id: response.data.id }]);
+          // Yeni içerik ekleme
+          const newSectionTemp = { id: Date.now().toString(), ...sectionData }; // Geçici ID
+          const response = await api.post('/data', newSectionTemp);
+          setSections((prev) => [...prev, { ...newSectionTemp, id: response.data.id || newSectionTemp.id }]);
+          // API'niz yeni oluşturulan öğenin ID'sini döndürmüyorsa, geçici ID'yi kullanmaya devam ederiz.
 
           Swal.fire({
             title: 'Başarılı!',
@@ -267,6 +271,25 @@ const DataOfAksuYonetimi: React.FC = () => {
     });
   };
 
+  // Metni kısaltma fonksiyonu
+  const truncateText = (text: string, maxLength: number) => {
+    if (text.length > maxLength) {
+      return text.substring(0, maxLength) + '...';
+    }
+    return text;
+  };
+
+  // Modal açma fonksiyonu
+  const openModalWithContent = (content: string) => {
+    setModalContent(content);
+  };
+
+  // Modal kapatma fonksiyonu
+  const closeModal = () => {
+    setModalContent(null);
+  };
+
+
   return (
     <Layout>
       <div className="p-6 space-y-6">
@@ -274,7 +297,13 @@ const DataOfAksuYonetimi: React.FC = () => {
 
         <div className="text-right">
           <button
-            onClick={() => setIsFormOpen(!isFormOpen)}
+            onClick={() => {
+              setIsFormOpen(!isFormOpen);
+              if (isFormOpen) { // Form kapatılırken formu sıfırla
+                setForm({ count: 0, title: '', enTitle: '', isActive: false });
+                setEditId(null);
+              }
+            }}
             className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition"
           >
             {isFormOpen ? 'Formu Gizle' : 'Yeni Ekle'}
@@ -286,7 +315,7 @@ const DataOfAksuYonetimi: React.FC = () => {
             <div>
               <label className="block font-semibold mb-1">Sayı</label>
               <input
-                type="text"
+                type="number" // Sayısal giriş için type="number" daha uygun
                 name="count"
                 value={form.count}
                 onChange={handleChange}
@@ -354,8 +383,20 @@ const DataOfAksuYonetimi: React.FC = () => {
               {sections.map((section) => (
                 <tr key={section.id} className="text-center">
                   <td className="p-3 border">{section.count}</td>
-                  <td className="p-3 border">{section.title}</td>
-                  <td className="p-3 border text-left max-w-xs truncate">{section.enTitle}</td>
+                  <td
+                    className="p-3 border text-left max-w-xs truncate cursor-pointer hover:underline"
+                    onDoubleClick={() => openModalWithContent(section.title)}
+                    title={section.title.length > 50 ? section.title : undefined} // Hover tooltip
+                  >
+                    {truncateText(section.title, 50)}
+                  </td>
+                  <td
+                    className="p-3 border text-left max-w-xs truncate cursor-pointer hover:underline"
+                    onDoubleClick={() => openModalWithContent(section.enTitle)}
+                    title={section.enTitle.length > 50 ? section.enTitle : undefined} // Hover tooltip
+                  >
+                    {truncateText(section.enTitle, 50)}
+                  </td>
                   <td className="p-3 border">
                     <span className={section.isActive ? 'text-green-600 font-semibold' : 'text-red-500'}>
                       {section.isActive ? 'Aktif' : 'Pasif'}
@@ -395,6 +436,24 @@ const DataOfAksuYonetimi: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Modal bileşeni */}
+      {modalContent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full">
+            <h3 className="text-xl font-bold mb-4">Tam İçerik</h3>
+            <p className="text-gray-800 whitespace-pre-wrap">{modalContent}</p>
+            <div className="mt-6 text-right">
+              <button
+                onClick={closeModal}
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };

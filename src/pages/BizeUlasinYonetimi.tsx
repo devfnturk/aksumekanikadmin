@@ -237,7 +237,9 @@ const BizeUlasinYonetimi: React.FC = () => {
                             <p><strong>Telefon:</strong> {selectedSection.phoneNumber}</p>
                             <p><strong>Konu:</strong> {selectedSection.subject}</p>
                             <p><strong>Mesaj:</strong> {selectedSection.message}</p>
-                            <p><strong>İletilme Tarihi:</strong> {selectedSection.createdAt}</p>
+                            <p><strong>İletilme Tarihi:</strong>  
+                                {new Date(selectedSection.createdAt).toLocaleString("tr-TR")}
+                            </p>
                         </div>
                         <div className="mt-6 text-right">
                             <button

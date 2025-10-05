@@ -40,7 +40,8 @@ const CatalogYönetimi: React.FC = () => {
   const [editId, setEditId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [imageBase64, setImageBase64] = useState<string>('');
-
+  const [modalContent, setModalContent] = useState<string | null>(null); // Metin modal içeriği
+  const [imageModalContent, setImageModalContent] = useState<string | null>(null); // Görsel modal içeriği
   const fetchSections = () => {
     api
       .get('/catalogs')
@@ -258,7 +259,36 @@ const CatalogYönetimi: React.FC = () => {
       reader.readAsDataURL(file);
     }
   };
+  // Metin modal açma fonksiyonu
+  const openTextModalWithContent = (content: string) => {
+    setModalContent(content);
+  };
 
+  // Metin modal kapatma fonksiyonu
+  const closeTextModal = () => {
+    setModalContent(null);
+  };
+
+  // Görsel modal açma fonksiyonu
+  const openImageModal = (imageUrl: string) => {
+    setImageModalContent(imageUrl);
+  };
+
+  // Görsel modal kapatma fonksiyonu
+  const closeImageModal = () => {
+    setImageModalContent(null);
+  };
+  const getDecodedImage = (section: Section): string | null => {
+    const imageObj = Array.isArray(section.image) ? section.image[0] : null;
+    const encoded = imageObj?.imageData;
+    return encoded ? decodeImage(encoded) : null;
+  };
+  const truncateText = (text: string, maxLength: number) => {
+    if (text.length > maxLength) {
+      return text.substring(0, maxLength) + '...';
+    }
+    return text;
+  };
   return (
     <Layout>
       <div className="p-6 space-y-6">
@@ -311,19 +341,39 @@ const CatalogYönetimi: React.FC = () => {
             <tbody>
               {sections.map((section) => (
                 <tr key={section.id} className="text-center">
-                  <td className="p-3 border">{section.title}</td>
-                  <td className="p-3 border">{section.link}</td>
+                  <td className="p-3 border"
+                   onDoubleClick={() => openTextModalWithContent(section.title)}
+                  > {truncateText(section.title, 50)}</td>
+                  <td className="p-3 border"
+                   onDoubleClick={() => openTextModalWithContent(section.link)}
+                  > {truncateText(section.link, 50)}</td>
                   <td className="p-3 border">
                     <span className={section.isActive ? 'text-green-600 font-semibold' : 'text-red-500'}>
                       {section.isActive ? 'Aktif' : 'Pasif'}
                     </span>
                   </td>
                   <td className="p-3 border">
-                    {section.image?.[0]?.imageData && <img src={decodeImage(section.image[0].imageData)} alt="banner" className="h-32 w-32 object-cover rounded-md" />}
+                    {section.image && Array.isArray(section.image) && section.image[0]?.imageData ? (
+                      <div
+                        className="relative w-16 h-10 mx-auto rounded overflow-hidden group cursor-pointer"
+                        onClick={() => openImageModal(getDecodedImage(section) || '')}
+                      >
+                        <img
+                          src={getDecodedImage(section) || ''}
+                          alt="Referans görseli"
+                          className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-110"
+                        />
+                        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          <span className="text-white text-xs font-semibold">Büyüt</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 italic">Yok</span>
+                    )}
                   </td>
                   <td className="p-3 border space-x-2">
                     <button onClick={() => toggleActiveStatus(section)} className={`${section.isActive ? 'bg-red-500' : 'bg-green-500'
-                        } text-white px-3 py-1 rounded hover:opacity-90`}>
+                      } text-white px-3 py-1 rounded hover:opacity-90`}>
                       {section.isActive ? 'Pasifleştir' : 'Aktifleştir'}
                     </button>
                     <button onClick={() => handleEdit(section)} className="bg-yellow-400 px-3 py-1 rounded hover:bg-yellow-500">Düzenle</button>
@@ -335,6 +385,44 @@ const CatalogYönetimi: React.FC = () => {
           </table>
         </div>
       </div>
+      {/* Metin Modal Bileşeni */}
+      {modalContent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full"> {/* max-h, flex-col gibi kaydırma çubuğu ile ilgili sınıfları kaldırdık */}
+            <h3 className="text-xl font-bold mb-4">Tam İçerik</h3>
+            {/* Metin için div veya p etiketine break-all sınıfını ekleyin */}
+            <div className="text-gray-800 break-all"> {/* break-all eklendi, overflow-y-auto ve flex-grow kaldırıldı */}
+              <p>{modalContent}</p>
+            </div>
+            <div className="mt-6 text-right">
+              <button
+                onClick={closeTextModal}
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Görsel Modal Bileşeni */}
+      {imageModalContent && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="relative bg-white p-4 rounded-lg shadow-xl max-w-3xl max-h-[90vh] overflow-hidden">
+            <button
+              onClick={closeImageModal}
+              className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-2 hover:bg-red-700 z-10"
+              aria-label="Görseli Kapat"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <img src={imageModalContent} alt="Büyütülmüş Referans Görseli" className="max-w-full max-h-full object-contain" />
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };

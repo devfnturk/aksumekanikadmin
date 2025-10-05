@@ -3,7 +3,7 @@ import Layout from '../components/Layout';
 import { useFormik } from 'formik';
 import pako from 'pako';
 import api from '../api';
-import Swal from 'sweetalert2'; // SweetAlert2'yi ekledik
+import Swal from 'sweetalert2';
 
 type Section = {
   id: string;
@@ -26,6 +26,7 @@ type Section = {
   enTitle: string;
   enDescription: string;
 }
+
 export function decodeImage(imageData: string): string {
   try {
     const binary = atob(imageData);
@@ -46,27 +47,20 @@ export function decodeImage(imageData: string): string {
     return '';
   }
 }
+
 const ProjectYonetimi: React.FC = () => {
 
   const [sections, setSections] = useState<Section[]>([]);
   const [editId, setEditId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [imageBase64, setImageBase64] = useState<string>('');
+  const [modalContent, setModalContent] = useState<string | null>(null);
+  const [imageModalContent, setImageModalContent] = useState<string | null>(null);
 
-  // const [brands, setBrands] = useState<Brand[]>([]);
-
-  // const fetchBrands = async () => {
-  //   try {
-  //     const res = await api.get('/field-of-activities'); // API endpoint'ini senin backend'e göre ayarla
-  //     setBrands(res.data);
-  //   } catch (err) {
-  //     console.error('Brand listesi alınamadı', err);
-  //   }
-  // };
   useEffect(() => {
-    // fetchBrands();
     fetchSections();
   }, []);
+
   const formik = useFormik({
     initialValues: {
       fieldOfActivityId: '',
@@ -80,10 +74,9 @@ const ProjectYonetimi: React.FC = () => {
       isCompleted: true,
       enTitle: '',
       enDescription: '',
-      isActive: true, // isActive'i başlangıç değerlerine ekledik
+      isActive: true,
     },
     onSubmit: async (values, { resetForm }) => {
-      // SweetAlert2 ile onay mesajı göster
       const result = await Swal.fire({
         title: editId ? 'Projeyi güncellemek istediğinize emin misiniz?' : 'Yeni proje eklemek istediğinize emin misiniz?',
         icon: 'warning',
@@ -99,7 +92,7 @@ const ProjectYonetimi: React.FC = () => {
       });
 
       if (!result.isConfirmed) {
-        return; // Kullanıcı iptal ettiyse işlemi durdur
+        return;
       }
 
       const formattedProjectDate = new Date(values.projectDate).toISOString().split('T')[0];
@@ -116,15 +109,15 @@ const ProjectYonetimi: React.FC = () => {
         isCompleted: values.isCompleted,
         enTitle: values.enTitle,
         enDescription: values.enDescription,
-        isActive: values.isActive, // isActive'i requestObject'e ekledik
+        isActive: values.isActive,
       };
-      console.log("requestObject", requestObject)
+
       const formData = new FormData();
       formData.append(
         'request',
         new Blob([JSON.stringify(requestObject)], { type: 'application/json' })
       );
-      console.log("imageBase64", imageBase64)
+
       if (imageBase64) {
         formData.append('files', dataURLToFile(imageBase64));
       }
@@ -149,6 +142,7 @@ const ProjectYonetimi: React.FC = () => {
       }
     }
   });
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -156,7 +150,7 @@ const ProjectYonetimi: React.FC = () => {
       reader.onloadend = () => {
         setImageBase64(reader.result as string);
       };
-      reader.readAsDataURL(file);  // Görseli Base64'e dönüştür
+      reader.readAsDataURL(file);
     }
   };
 
@@ -171,16 +165,17 @@ const ProjectYonetimi: React.FC = () => {
     }
     return new File([u8arr], 'image.jpg', { type: mime });
   };
+
   const fetchSections = () => {
     api.get<Section[]>('/project-management')
       .then(res => setSections(res.data))
       .catch(err => console.error('Veri çekme hatası', err));
-
   };
+
   const handleEdit = (section: Section) => {
     const formattedProjectDate = new Date(section.projectDate).toISOString().split('T')[0];
     formik.setValues({
-      fieldOfActivityId: section.fieldOfActivity.id,
+      fieldOfActivityId: section.fieldOfActivity?.id || '',
       title: section.title,
       description: section.description,
       client: section.client,
@@ -248,14 +243,12 @@ const ProjectYonetimi: React.FC = () => {
     }
 
     try {
-      // Önce mevcut referans verisini al
       const res = await api.get(`/project-management/${id}`);
       const existing = res.data;
       const formattedProjectDate = new Date(existing.projectDate).toISOString().split('T')[0];
 
-      // Sadece isCompleted değerini değiştiriyoruz, diğerleri aynı kalıyor
       const requestObject = {
-        fieldOfActivityId: existing.fieldOfActivity.id,
+        fieldOfActivityId: existing.fieldOfActivity?.id || '',
         title: existing.title,
         description: existing.description,
         client: existing.client,
@@ -263,10 +256,10 @@ const ProjectYonetimi: React.FC = () => {
         area: existing.area,
         projectDate: formattedProjectDate,
         link: existing.link,
-        isCompleted: !existing.isCompleted, // Burası değişiyor
+        isCompleted: !existing.isCompleted,
         enTitle: existing.enTitle,
         enDescription: existing.enDescription,
-        isActive: existing.isActive, // isActive da request object'in içinde olmalı
+        isActive: existing.isActive,
       };
 
       const formData = new FormData();
@@ -274,20 +267,6 @@ const ProjectYonetimi: React.FC = () => {
         'request',
         new Blob([JSON.stringify(requestObject)], { type: 'application/json' })
       );
-      // Eğer mevcut görsel varsa, onu da formData'ya ekliyoruz
-      if (existing.image && Array.isArray(existing.image) && existing.image[0]?.imageData) {
-        // imageData'yı doğrudan File objesine dönüştürüp eklemiyoruz
-        // Sadece request body'ye eski görsel bilgilerini gönderiyoruz.
-        // Eğer API, PUT işleminde yeni görsel gelmezse eskisini koruyorsa bu yeterlidir.
-        // Aksi takdirde, backend'in mevcut görseli koruma mekanizması olmalıdır.
-        // Frontend'den direkt base64 ile File göndermemeye özen gösteriyoruz eğer API sadece yeni dosya bekliyorsa.
-        // Mevcut durumda, API'nin resmin FormData içinde olmaması durumunda görseli değiştirmediğini varsayalım.
-      }
-      // Eğer mevcut görselin base64'ü varsa ve API bunu dosya olarak bekliyorsa:
-      // if (existing.image?.[0]?.imageData) {
-      //   formData.append('files', dataURLToFile(decodeImage(existing.image[0].imageData)));
-      // }
-
 
       await api.put(`/project-management/${id}`, formData);
       fetchSections();
@@ -324,14 +303,12 @@ const ProjectYonetimi: React.FC = () => {
     }
 
     try {
-      // Önce mevcut referans verisini al
       const res = await api.get(`/project-management/${id}`);
       const existing = res.data;
       const formattedProjectDate = new Date(existing.projectDate).toISOString().split('T')[0];
 
-      // Sadece isActive değerini değiştiriyoruz, diğerleri aynı kalıyor
       const requestObject = {
-        fieldOfActivityId: existing.fieldOfActivity.id,
+        fieldOfActivityId: existing.fieldOfActivity?.id || '',
         title: existing.title,
         description: existing.description,
         client: existing.client,
@@ -342,7 +319,7 @@ const ProjectYonetimi: React.FC = () => {
         isCompleted: existing.isCompleted,
         enTitle: existing.enTitle,
         enDescription: existing.enDescription,
-        isActive: !existing.isActive, // Burası değişiyor
+        isActive: !existing.isActive,
       };
 
       const formData = new FormData();
@@ -350,15 +327,6 @@ const ProjectYonetimi: React.FC = () => {
         'request',
         new Blob([JSON.stringify(requestObject)], { type: 'application/json' })
       );
-      // Eğer mevcut görsel varsa, onu da formData'ya ekliyoruz
-      if (existing.image && Array.isArray(existing.image) && existing.image[0]?.imageData) {
-        // Yukarıdaki handleToggleCompleted ile aynı mantık, API'nin resim dosyası gelmediğinde mevcut görseli koruduğunu varsayıyoruz.
-      }
-      // Eğer mevcut görselin base64'ü varsa ve API bunu dosya olarak bekliyorsa:
-      // if (existing.image?.[0]?.imageData) {
-      //   formData.append('files', dataURLToFile(decodeImage(existing.image[0].imageData)));
-      // }
-
 
       await api.put(`/project-management/${id}`, formData);
       fetchSections();
@@ -369,6 +337,33 @@ const ProjectYonetimi: React.FC = () => {
     }
   };
 
+  const truncateText = (text: string, maxLength: number) => {
+    if (!text) return '';
+    if (text.length > maxLength) {
+      return text.substring(0, maxLength) + '...';
+    }
+    return text;
+  };
+
+  const openTextModalWithContent = (content: string) => {
+    setModalContent(content);
+  };
+
+  // Metin modal kapatma fonksiyonu
+  const closeTextModal = () => {
+    setModalContent(null);
+  };
+
+  // Görsel modal açma fonksiyonu
+  const openImageModal = (imageUrl: string) => {
+    setImageModalContent(imageUrl);
+  };
+
+  // Görsel modal kapatma fonksiyonu
+  const closeImageModal = () => {
+    setImageModalContent(null);
+  };
+
   return (
     <Layout>
       <div className="p-6 space-y-6">
@@ -377,7 +372,7 @@ const ProjectYonetimi: React.FC = () => {
           <button
             onClick={() => {
               setIsFormOpen(prev => !prev);
-              if (isFormOpen) { // Formu gizlerken formu sıfırla
+              if (isFormOpen) {
                 formik.resetForm();
                 setEditId(null);
                 setImageBase64('');
@@ -391,28 +386,8 @@ const ProjectYonetimi: React.FC = () => {
 
         {isFormOpen && (
           <form onSubmit={formik.handleSubmit} className="space-y-6 p-6 bg-white rounded-lg shadow-xl">
-            {/* Dropdown Menü */}
-            {/* <div className="mb-6">
-              <label htmlFor="fieldOfActivityId" className="block text-sm font-semibold text-gray-800">Faaliyet Alanı</label>
-              <select
-                id="fieldOfActivityId"
-                name="fieldOfActivityId"
-                onChange={formik.handleChange}
-                value={formik.values.fieldOfActivityId}
-                className="mt-2 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-300 p-2"
-              >
-                <option value="">Seçiniz...</option>
-                {brands.map((activity) => (
-                  <option key={activity.id} value={activity.id}>
-                    {activity.title}
-                  </option>
-                ))}
-              </select>
-            </div> */}
-
-            {/* Başlık ve Müşteri Alanları Yan Yana */}
+            {/* ... (Form inputs - no changes here) ... */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              {/* Başlık */}
               <div>
                 <label htmlFor="title" className="block text-sm font-semibold text-gray-800">Başlık</label>
                 <input
@@ -425,7 +400,6 @@ const ProjectYonetimi: React.FC = () => {
                 />
               </div>
 
-              {/* Müşteri */}
               <div>
                 <label htmlFor="client" className="block text-sm font-semibold text-gray-800">Müşteri</label>
                 <input
@@ -439,9 +413,7 @@ const ProjectYonetimi: React.FC = () => {
               </div>
             </div>
 
-            {/* Konum ve Alan Yan Yana */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              {/* Konum */}
               <div>
                 <label htmlFor="location" className="block text-sm font-semibold text-gray-800">Konum</label>
                 <input
@@ -454,7 +426,6 @@ const ProjectYonetimi: React.FC = () => {
                 />
               </div>
 
-              {/* Alan */}
               <div>
                 <label htmlFor="area" className="block text-sm font-semibold text-gray-800">Alan</label>
                 <input
@@ -468,9 +439,7 @@ const ProjectYonetimi: React.FC = () => {
               </div>
             </div>
 
-            {/* Proje Tarihi ve Link Yan Yana */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              {/* Proje Tarihi */}
               <div>
                 <label htmlFor="projectDate" className="block text-sm font-semibold text-gray-800">Proje Tarihi</label>
                 <input
@@ -483,7 +452,6 @@ const ProjectYonetimi: React.FC = () => {
                 />
               </div>
 
-              {/* Link */}
               <div>
                 <label htmlFor="link" className="block text-sm font-semibold text-gray-800">Link</label>
                 <input
@@ -497,7 +465,6 @@ const ProjectYonetimi: React.FC = () => {
               </div>
             </div>
 
-            {/* Açıklama */}
             <div className="mb-6">
               <label htmlFor="description" className="block text-sm font-semibold text-gray-800">Açıklama</label>
               <textarea
@@ -509,9 +476,7 @@ const ProjectYonetimi: React.FC = () => {
               />
             </div>
 
-            {/* En Başlık ve En Açıklama Yan Yana */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              {/* En Başlık */}
               <div>
                 <label htmlFor="enTitle" className="block text-sm font-semibold text-gray-800">(EN) Başlık</label>
                 <input
@@ -524,7 +489,6 @@ const ProjectYonetimi: React.FC = () => {
                 />
               </div>
 
-              {/* En Açıklama */}
               <div>
                 <label htmlFor="enDescription" className="block text-sm font-semibold text-gray-800">(EN) Açıklama</label>
                 <textarea
@@ -537,7 +501,6 @@ const ProjectYonetimi: React.FC = () => {
               </div>
             </div>
 
-            {/* Tamamlandı Durumu */}
             <div className="mb-6">
               <label className="block text-sm font-semibold text-gray-800">
                 <input
@@ -552,7 +515,6 @@ const ProjectYonetimi: React.FC = () => {
               </label>
             </div>
 
-            {/* Dosya Seçimi */}
             <div className="mb-6">
               <label htmlFor="files" className="block text-sm font-semibold text-gray-800">
                 Görsel Yükle
@@ -563,7 +525,6 @@ const ProjectYonetimi: React.FC = () => {
               )}
             </div>
 
-            {/* Submit Button */}
             <button type="submit" className="w-full bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 transition duration-300">
               Kaydet
             </button>
@@ -573,7 +534,6 @@ const ProjectYonetimi: React.FC = () => {
           <table className="min-w-full table-auto border-collapse text-sm">
             <thead className="bg-gray-100 text-gray-700">
               <tr>
-                {/* <th className="p-3 border">Faaliyet Alanı</th> */}
                 <th className="p-3 border">Başlık</th>
                 <th className="p-3 border">(EN) Başlık</th>
                 <th className="p-3 border">Açıklama</th>
@@ -591,15 +551,66 @@ const ProjectYonetimi: React.FC = () => {
             </thead>
             <tbody>
               {sections.map((section) => (
-                <tr key={section.id} className="text-center hover:bg-gray-50 cursor-pointer">
-                  {/* <td className="p-3 border">{section.fieldOfActivity.title}</td> */}
-                  <td className="p-3 border">{section.title}</td>
-                  <td className="p-3 border">{section.enTitle}</td>
-                  <td className="p-3 border">{section.enDescription}</td>
-                  <td className="p-3 border">{section.description}</td>
-                  <td className="p-3 border">{section.client}</td>
-                  <td className="p-3 border">{section.location}</td>
-                  <td className="p-3 border">{section.area}</td>
+                <tr key={section.id} className="text-center hover:bg-gray-50">
+                  <td className="p-3 border max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
+                    onDoubleClick={() => openTextModalWithContent(section.title)}
+                  >
+                    {section.title.length > 50 ? (
+                      truncateText(section.title, 50)
+                    ) : (
+                      section.title
+                    )}
+                  </td>
+                  <td className="p-3 border max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap"
+                    onDoubleClick={() => openTextModalWithContent(section.enTitle)}>
+                    {section.enTitle.length > 50 ? (
+                      truncateText(section.enTitle, 50)
+                    ) : (
+                      section.enTitle
+                    )}
+                  </td>
+                  <td className="p-3 border max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap"
+                    onDoubleClick={() => openTextModalWithContent(section.description)}>
+                    {section.description.length > 50 ? (
+                      truncateText(section.description, 50)
+                    ) : (
+                      section.description
+                    )}
+                  </td>
+                  <td className="p-3 border max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap"
+                    onDoubleClick={() => openTextModalWithContent(section.enDescription)}>
+                    {section.enDescription.length > 50 ? (
+                      truncateText(section.enDescription, 50)
+                    ) : (
+                      section.enDescription
+                    )}
+                  </td>
+                  <td className="p-3 border max-w-[100px] overflow-hidden text-ellipsis whitespace-nowrap"
+                    onDoubleClick={() => openTextModalWithContent(section.client)}>
+                    {section.client.length > 50 ? (
+
+                      truncateText(section.client, 50)
+
+                    ) : (
+                      section.client
+                    )}
+                  </td>
+                  <td className="p-3 border max-w-[100px] overflow-hidden text-ellipsis whitespace-nowrap" onDoubleClick={() => openTextModalWithContent(section.location)}>
+                    {section.location.length > 50 ? (
+
+                      truncateText(section.location, 50)
+                    ) : (
+                      section.location
+                    )}
+                  </td>
+                  <td className="p-3 border max-w-[100px] overflow-hidden text-ellipsis whitespace-nowrap"
+                    onDoubleClick={() => openTextModalWithContent(section.area)}>
+                    {section.area.length > 50 ? (
+                      truncateText(section.area, 50)
+                    ) : (
+                      section.area
+                    )}
+                  </td>
                   <td className="p-3 border">{section.projectDate}</td>
                   <td className="p-3 border">
                     <a href={section.link} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
@@ -608,11 +619,19 @@ const ProjectYonetimi: React.FC = () => {
                   </td>
                   <td className="p-3 border">
                     {section.image && Array.isArray(section.image) && section.image[0]?.imageData ? (
-                      <img
-                        src={getDecodedImage(section) || ''}
-                        alt="Referans görseli"
-                        className="w-16 h-10 object-cover mx-auto rounded"
-                      />
+                      <div
+                        className="relative w-16 h-10 mx-auto rounded overflow-hidden group cursor-pointer"
+                        onClick={() => openImageModal(getDecodedImage(section) || '')}
+                      >
+                        <img
+                          src={getDecodedImage(section) || ''}
+                          alt="Referans görseli"
+                          className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-110"
+                        />
+                        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          <span className="text-white text-xs font-semibold">Büyüt</span>
+                        </div>
+                      </div>
                     ) : (
                       <span className="text-gray-400 italic">Yok</span>
                     )}
@@ -641,16 +660,16 @@ const ProjectYonetimi: React.FC = () => {
                   </td>
                   <td className="p-3 border space-x-2">
                     <button
-                      onClick={() => handleToggleActive(section.id, section.isActive)} // currentStatus yerine section.isActive gönderelim
+                      onClick={() => handleToggleActive(section.id, section.isActive)}
                       className={`${section.isActive ? 'bg-red-500' : 'bg-green-500'
-                        } text-white px-3 py-1 rounded hover:opacity-90`}
+                        } text-white px-3 py-1 rounded hover:opacity-90 text-xs`}
                     >
                       {section.isActive ? 'Pasifleştir' : 'Aktifleştir'}
                     </button>
                     <button
-                      onClick={() => handleToggleCompleted(section.id, section.isCompleted)} // currentStatus yerine section.isCompleted gönderelim
+                      onClick={() => handleToggleCompleted(section.id, section.isCompleted)}
                       className={`${section.isCompleted ? 'bg-indigo-500' : 'bg-orange-500'
-                        } text-white px-3 py-1 rounded hover:opacity-90`}
+                        } text-white px-3 py-1 rounded hover:opacity-90 text-xs`}
                     >
                       {section.isCompleted ? 'Tamamlandı' : 'Tamamlanmadı'}
                     </button>
@@ -659,7 +678,7 @@ const ProjectYonetimi: React.FC = () => {
                         e.stopPropagation();
                         handleEdit(section);
                       }}
-                      className="bg-yellow-400 text-white px-2 py-1 rounded"
+                      className="bg-yellow-400 text-white px-2 py-1 rounded text-xs"
                     >
                       Düzenle
                     </button>
@@ -668,7 +687,7 @@ const ProjectYonetimi: React.FC = () => {
                         e.stopPropagation();
                         handleDelete(section.id);
                       }}
-                      className="bg-red-600 text-white px-2 py-1 rounded"
+                      className="bg-red-600 text-white px-2 py-1 rounded text-xs"
                     >
                       Sil
                     </button>
@@ -679,9 +698,46 @@ const ProjectYonetimi: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Yenilenmiş Metin İçerik Modalı */}
+      {modalContent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full"> {/* max-h, flex-col gibi kaydırma çubuğu ile ilgili sınıfları kaldırdık */}
+            <h3 className="text-xl font-bold mb-4">Tam İçerik</h3>
+            {/* Metin için div veya p etiketine break-all sınıfını ekleyin */}
+            <div className="text-gray-800 break-all"> {/* break-all eklendi, overflow-y-auto ve flex-grow kaldırıldı */}
+              <p>{modalContent}</p>
+            </div>
+            <div className="mt-6 text-right">
+              <button
+                onClick={closeTextModal}
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {imageModalContent && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="relative bg-white p-4 rounded-lg shadow-xl max-w-3xl max-h-[90vh] overflow-hidden">
+            <button
+              onClick={closeImageModal}
+              className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-2 hover:bg-red-700 z-10"
+              aria-label="Görseli Kapat"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <img src={imageModalContent} alt="Büyütülmüş Referans Görseli" className="max-w-full max-h-full object-contain" />
+          </div>
+        </div>
+      )}
     </Layout>
   );
-
 };
 
 export default ProjectYonetimi;
