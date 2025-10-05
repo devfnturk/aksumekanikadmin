@@ -11,7 +11,6 @@ import IletisimYonetimi from './pages/IletisimYonetimi';
 import DataOfAksuYonetimi from './pages/DataOfAksuYonetimi';
 import ProjectYonetimi from './pages/ProjectYonetimi';
 import api from './api';
-import FieldOfActivitiesYonetimi from './pages/FieldOfActivitiesYonetimi';
 import BrandYonetimi from './pages/BrandYonetimi';
 import BrandActivityAreasYonetimi from './pages/BrandActivityAreasYonetimi';
 import ProductYonetimi from './pages/ProductYonetimi';
@@ -31,7 +30,6 @@ const App: React.FC = () => {
         <Route path="/iletisimYonetimi" element={<IletisimYonetimi />} />
         <Route path="/catalogYönetimi" element={<CatalogYönetimi />} />
         <Route path="/projectYonetimi" element={<ProjectYonetimi />} />
-        <Route path="/fieldOfActivitiesYonetimi" element={<FieldOfActivitiesYonetimi />} />
         <Route path="/brandYonetimi" element={<BrandYonetimi />} />
         <Route path="/brandActivityAreasYonetimi" element={<BrandActivityAreasYonetimi />} />
         <Route path="/productYonetimi" element={<ProductYonetimi />} />
