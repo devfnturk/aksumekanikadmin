@@ -46,10 +46,6 @@ export function decodeImage(imageData: string): string {
     return '';
   }
 }
-type Brand = {
-  id: string;
-  title: string;
-};
 const ProjectYonetimi: React.FC = () => {
 
   const [sections, setSections] = useState<Section[]>([]);
