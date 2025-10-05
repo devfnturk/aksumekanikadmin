@@ -270,7 +270,7 @@ const DataOfAksuYonetimi: React.FC = () => {
   return (
     <Layout>
       <div className="p-6 space-y-6">
-        <h1 className="text-2xl font-bold">Data Of Aksu Yönetimi</h1>
+        <h1 className="text-2xl font-bold">Veri Yönetimi</h1>
 
         <div className="text-right">
           <button
@@ -284,7 +284,7 @@ const DataOfAksuYonetimi: React.FC = () => {
         {isFormOpen && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white p-4 rounded-xl shadow">
             <div>
-              <label className="block font-semibold mb-1">Sıra Numarası</label>
+              <label className="block font-semibold mb-1">Sayı</label>
               <input
                 type="text"
                 name="count"
@@ -306,18 +306,17 @@ const DataOfAksuYonetimi: React.FC = () => {
               />
             </div>
 
-            <div className="md:col-span-2">
-              <label className="block font-semibold mb-1">İngilizce Başlık</label>
-              <textarea
+            <div>
+              <label className="block font-semibold mb-1">(En) Başlık</label>
+              <input
                 name="enTitle"
                 value={form.enTitle}
                 onChange={handleChange}
-                rows={4}
                 placeholder="İngilizce Başlık giriniz"
                 className="w-full border rounded-md p-2"
               />
             </div>
-            <div className="md:col-span-2">
+            <div>
               <label className="block font-semibold mb-1">Durum</label>
               <select
                 name="isActive"
@@ -344,9 +343,9 @@ const DataOfAksuYonetimi: React.FC = () => {
           <table className="min-w-full table-auto border-collapse">
             <thead className="bg-gray-100">
               <tr>
-                <th className="p-3 border">Sıra</th>
+                <th className="p-3 border">Sayı</th>
                 <th className="p-3 border">Başlık</th>
-                <th className="p-3 border">İngilizce Başlık</th>
+                <th className="p-3 border">(EN) Başlık</th>
                 <th className="p-3 border">Durum</th>
                 <th className="p-3 border">İşlemler</th>
               </tr>
@@ -357,14 +356,17 @@ const DataOfAksuYonetimi: React.FC = () => {
                   <td className="p-3 border">{section.count}</td>
                   <td className="p-3 border">{section.title}</td>
                   <td className="p-3 border text-left max-w-xs truncate">{section.enTitle}</td>
-                  <td className="p-3 border">{section.isActive ? 'Aktif' : 'Pasif'}</td>
+                  <td className="p-3 border">
+                    <span className={section.isActive ? 'text-green-600 font-semibold' : 'text-red-500'}>
+                      {section.isActive ? 'Aktif' : 'Pasif'}
+                    </span></td>
                   <td className="p-3 border space-x-2">
                     <button
                       onClick={() => handleToggleActive(section.id)}
                       className={`${section.isActive ? 'bg-red-500' : 'bg-green-600'
                         } text-white px-3 py-1 rounded hover:bg-opacity-80`}
                     >
-                      {section.isActive ? 'Deaktive Et' : 'Aktif Et'}
+                      {section.isActive ? 'Pasifleştir' : 'Aktifleştir'}
                     </button>
                     <button
                       onClick={() => handleEdit(section)}

@@ -3,7 +3,6 @@ import Layout from '../components/Layout';
 import api from '../api';
 import pako from 'pako';
 import { useFormik } from 'formik';
-import * as Yup from 'yup';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
@@ -86,13 +85,6 @@ const BrandYonetimi: React.FC = () => {
       enTitle: '',
       enDescription: '',
     },
-    validationSchema: Yup.object({
-      title: Yup.string().required('Başlık zorunludur'),
-      description: Yup.string().required('Açıklama zorunludur'),
-      enTitle: Yup.string().required('EN Açıklama zorunludur'),
-      enDescription: Yup.string().required('EN Başlık zorunludur'),
-      isActive: Yup.boolean(),
-    }),
     onSubmit: async (values, { resetForm }) => {
       // Önce validation
       const errors = await formik.validateForm();
@@ -274,7 +266,7 @@ const BrandYonetimi: React.FC = () => {
     <Layout>
       <div className="p-6 space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Brand Yönetimi</h1>
+          <h1 className="text-2xl font-bold">Marka Yönetimi</h1>
           <button
             onClick={() => {
               formik.resetForm();
@@ -283,7 +275,7 @@ const BrandYonetimi: React.FC = () => {
             }}
             className="bg-green-600 text-white px-4 py-2 rounded"
           >
-            {isFormOpen ? 'Formu Gizle' : 'Yeni Brand Ekle'}
+            {isFormOpen ? 'Formu Gizle' : 'Yeni Marka Ekle'}
           </button>
         </div>
 
@@ -303,9 +295,6 @@ const BrandYonetimi: React.FC = () => {
                   className="w-full border rounded-md p-2"
                   placeholder="Başlık"
                 />
-                {formik.touched.title && formik.errors.title && (
-                  <p className="text-red-500 text-sm">{formik.errors.title}</p>
-                )}
               </div>
 
               <div className="col-span-1 md:col-span-2">
@@ -317,9 +306,6 @@ const BrandYonetimi: React.FC = () => {
                   className="w-full border rounded-md p-2"
                   placeholder="Açıklama"
                 />
-                {formik.touched.description && formik.errors.description && (
-                  <p className="text-red-500 text-sm">{formik.errors.description}</p>
-                )}
               </div>
 
               <input
@@ -328,21 +314,15 @@ const BrandYonetimi: React.FC = () => {
                 value={formik.values.enTitle}
                 onChange={formik.handleChange}
                 className="w-full border rounded-md p-2"
-                placeholder="Title (EN)"
+                placeholder="Başlık (EN)"
               />
-               {formik.touched.enTitle && formik.errors.enTitle && (
-                  <p className="text-red-500 text-sm">{formik.errors.enTitle}</p>
-                )}
               <textarea
                 name="enDescription"
                 value={formik.values.enDescription}
                 onChange={formik.handleChange}
                 className="w-full border rounded-md p-2 md:col-span-2"
-                placeholder="Description (EN)"
+                placeholder="Açıklama (EN)"
               />
-               {formik.touched.enDescription && formik.errors.enDescription && (
-                  <p className="text-red-500 text-sm">{formik.errors.enDescription}</p>
-                )}
               <select
                 name="isActive"
                 value={formik.values.isActive.toString()}
@@ -385,9 +365,9 @@ const BrandYonetimi: React.FC = () => {
             <thead className="bg-gray-100 text-gray-700">
               <tr>
                 <th className="p-3 border">Başlık</th>
-                <th className="p-3 border">EN Title</th>
+                <th className="p-3 border">(EN) Başlık</th>
                 <th className="p-3 border">Açıklama</th>
-                <th className="p-3 border">EN Açıklama</th>
+                <th className="p-3 border">(EN) Açıklama</th>
                 <th className="p-3 border">Durum</th>
                 <th className="p-3 border">Görsel</th>
                 <th className="p-3 border">İşlemler</th>
@@ -423,11 +403,8 @@ const BrandYonetimi: React.FC = () => {
                   <td className="p-3 border space-x-2">
                     <button
                       onClick={() => toggleActiveStatus(section.id)}
-                      className={`px-3 py-1 rounded ${
-                        section.isActive
-                          ? 'bg-gray-500 hover:bg-gray-600'
-                          : 'bg-green-600 hover:bg-green-700 text-white'
-                      }`}
+                      className={`${section.isActive ? 'bg-red-500' : 'bg-green-500'
+                        } text-white px-3 py-1 rounded hover:opacity-90`}
                     >
                       {section.isActive ? 'Pasifleştir' : 'Aktifleştir'}
                     </button>

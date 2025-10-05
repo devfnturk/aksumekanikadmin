@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useFormik } from 'formik';
-import * as Yup from 'yup';
 import Layout from '../components/Layout';
 import api from '../api';
 import pako from 'pako';
@@ -76,10 +75,6 @@ const ReferansYonetimi: React.FC = () => {
       link: '',
       isActive: true,
     },
-    validationSchema: Yup.object({
-      title: Yup.string().required('Başlık zorunlu'),
-      link: Yup.string().required('Link zorunlu'),
-    }),
     onSubmit: async (values, { resetForm }) => {
       try {
         const confirmed = await Swal.fire({
@@ -314,7 +309,7 @@ const ReferansYonetimi: React.FC = () => {
   return (
     <Layout>
       <div className="p-6 space-y-6">
-        <h1 className="text-2xl font-bold">Referanslar Yönetimi</h1>
+        <h1 className="text-2xl font-bold">Referans Yönetimi</h1>
         <div className="text-right">
           <button
             onClick={() => setIsFormOpen(!isFormOpen)}
@@ -337,9 +332,6 @@ const ReferansYonetimi: React.FC = () => {
                 onChange={formik.handleChange}
                 className="w-full border rounded-md p-2"
               />
-              {formik.touched.title && formik.errors.title && (
-                <div className="text-red-500 text-sm">{formik.errors.title}</div>
-              )}
             </div>
             <div>
               <label className="block font-semibold mb-1">Link</label>
@@ -349,9 +341,6 @@ const ReferansYonetimi: React.FC = () => {
                 onChange={formik.handleChange}
                 className="w-full border rounded-md p-2"
               />
-              {formik.touched.link && formik.errors.link && (
-                <div className="text-red-500 text-sm">{formik.errors.link}</div>
-              )}
             </div>
             <div>
               <label className="block font-semibold mb-1">Durum</label>
@@ -410,7 +399,10 @@ const ReferansYonetimi: React.FC = () => {
                       <span className="text-gray-400 italic">Yok</span>
                     )}
                   </td>
-                  <td className="p-3 border">{section.isActive ? 'Aktif' : 'Pasif'}</td>
+                  <td className="p-3 border">
+                    <span className={section.isActive ? 'text-green-600 font-semibold' : 'text-red-500'}>
+                      {section.isActive ? 'Aktif' : 'Pasif'}
+                    </span></td>
                   <td className="p-3 border space-x-2">
                     <button
                       onClick={() => handleToggleActive(section.id, !section.isActive)}

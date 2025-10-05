@@ -74,14 +74,14 @@ const Header: React.FC = () => {
                             </button>
                             {isPageDropdownOpen && (
                                 <div className="absolute left-0 mt-2 w-48 bg-white border rounded-lg shadow-lg opacity-100 scale-100 transition-all duration-200 z-10">
-                                    <Link to="/bannerYonetimi" className="block px-4 py-2 hover:bg-gray-100">Banner Yönetimi</Link>
-                                    <Link to="/projectYonetimi" className="block px-4 py-2 hover:bg-gray-100">Project Yönetimi</Link>
-                                    <Link to="/dataOfAksuYonetimi" className="block px-4 py-2 hover:bg-gray-100">Data Of Aksu Yönetimi</Link>
-                                    <Link to="/catalogYönetimi" className="block px-4 py-2 hover:bg-gray-100">Katalog Yönetimi</Link>
+                                    <Link to="/bannerYonetimi" className="block px-4 py-2 hover:bg-gray-100">Afiş Yönetimi</Link>
+                                    <Link to="/dataOfAksuYonetimi" className="block px-4 py-2 hover:bg-gray-100">Veri Yönetimi</Link>
                                     <Link to="/referansYonetimi" className="block px-4 py-2 hover:bg-gray-100">Referans Yönetimi</Link>
-                                    <Link to="/fieldOfActivitiesYonetimi" className="block px-4 py-2 hover:bg-gray-100">Field Of Activities Yönetimi</Link>
+                                    <Link to="/projectYonetimi" className="block px-4 py-2 hover:bg-gray-100">Proje Yönetimi</Link>
+                                    <Link to="/catalogYönetimi" className="block px-4 py-2 hover:bg-gray-100">Katalog Yönetimi</Link>
                                     <Link to="/brandYonetimi" className="block px-4 py-2 hover:bg-gray-100">Marka Yönetimi</Link>
                                     <Link to="/brandActivityAreasYonetimi" className="block px-4 py-2 hover:bg-gray-100">Marka Etkinlikleri Alanı Yönetimi</Link>
+                                    <Link to="/productYonetimi" className="block px-4 py-2 hover:bg-gray-100">Ürün Yönetimi</Link>
                                 </div>
                             )}
                         </div>

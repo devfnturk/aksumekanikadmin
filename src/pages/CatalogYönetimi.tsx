@@ -3,7 +3,6 @@ import Layout from '../components/Layout';
 import api from '../api';
 import pako from 'pako';
 import { useFormik } from 'formik';
-import * as Yup from 'yup';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
@@ -67,10 +66,6 @@ const CatalogYönetimi: React.FC = () => {
       link: '',
       isActive: true,
     },
-    validationSchema: Yup.object({
-      link: Yup.string().required('Link zorunlu'),
-      title: Yup.string().required('Başlık zorunludur'),
-    }),
     onSubmit: async (values, { resetForm }) => {
       const result = await Swal.fire({
         title: editId ? 'Katalog güncellensin mi?' : 'Yeni katalog eklensin mi?',
@@ -285,17 +280,7 @@ const CatalogYönetimi: React.FC = () => {
           <form onSubmit={formik.handleSubmit} className="bg-white p-6 rounded-xl shadow space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <input type="text" name="title" value={formik.values.title} onChange={formik.handleChange} className="w-full border rounded-md p-2" placeholder="Başlık" />
-              {formik.touched.title && formik.errors.title && (
-                <div className="text-red-500 text-sm">
-                  {formik.errors.title}
-                </div>
-              )}
               <input type="text" name="link" value={formik.values.link} onChange={formik.handleChange} className="w-full border rounded-md p-2" placeholder="Link" />
-              {formik.touched.link && formik.errors.link && (
-                <div className="text-red-500 text-sm">
-                  {formik.errors.link}
-                </div>
-              )}
               <select name="isActive" value={formik.values.isActive.toString()} onChange={formik.handleChange} className="w-full border rounded-md p-2">
                 <option value="true">Aktif</option>
                 <option value="false">Pasif</option>
@@ -337,7 +322,8 @@ const CatalogYönetimi: React.FC = () => {
                     {section.image?.[0]?.imageData && <img src={decodeImage(section.image[0].imageData)} alt="banner" className="h-32 w-32 object-cover rounded-md" />}
                   </td>
                   <td className="p-3 border space-x-2">
-                    <button onClick={() => toggleActiveStatus(section)} className={`px-3 py-1 rounded ${section.isActive ? 'bg-gray-500 hover:bg-gray-600' : 'bg-green-600 hover:bg-green-700 text-white'}`}>
+                    <button onClick={() => toggleActiveStatus(section)} className={`${section.isActive ? 'bg-red-500' : 'bg-green-500'
+                        } text-white px-3 py-1 rounded hover:opacity-90`}>
                       {section.isActive ? 'Pasifleştir' : 'Aktifleştir'}
                     </button>
                     <button onClick={() => handleEdit(section)} className="bg-yellow-400 px-3 py-1 rounded hover:bg-yellow-500">Düzenle</button>

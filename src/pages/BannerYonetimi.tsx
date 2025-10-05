@@ -3,7 +3,6 @@ import Layout from '../components/Layout';
 import api from '../api';
 import pako from 'pako';
 import { useFormik } from 'formik';
-import * as Yup from 'yup';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
@@ -41,11 +40,39 @@ export function decodeImage(imageData: string): string {
   }
 }
 
+// Modal için yeni bir bileşen oluşturalım veya bu dosya içinde tanımlayalım
+const Modal: React.FC<{ isOpen: boolean; onClose: () => void; children: React.ReactNode }> = ({
+  isOpen,
+  onClose,
+  children,
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg p-6 max-w-lg w-full relative">
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 text-gray-700 hover:text-gray-900 text-2xl"
+        >
+          &times;
+        </button>
+        {children}
+      </div>
+    </div>
+  );
+};
+
 const BannerYonetimi: React.FC = () => {
   const [sections, setSections] = useState<Section[]>([]);
   const [editId, setEditId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [imageBase64, setImageBase64] = useState<string>('');
+
+  // Modal state'leri
+  const [showModal, setShowModal] = useState(false);
+  const [modalContent, setModalContent] = useState<string | null>(null);
+  const [modalImage, setModalImage] = useState<string | null>(null);
 
   const fetchSections = () => {
     api
@@ -54,7 +81,9 @@ const BannerYonetimi: React.FC = () => {
       .catch((err) => console.error('Veri çekme hatası', err));
   };
 
-  useEffect(() => { fetchSections(); }, []);
+  useEffect(() => {
+    fetchSections();
+  }, []);
 
   const dataURLToFile = (dataUrl: string) => {
     const arr = dataUrl.split(',');
@@ -77,14 +106,9 @@ const BannerYonetimi: React.FC = () => {
       enDescription: '',
       enTag: '',
     },
-    validationSchema: Yup.object({
-      tag: Yup.string().required('Etiket zorunludur'),
-      title: Yup.string().required('Başlık zorunludur'),
-      description: Yup.string().required('Açıklama zorunludur'),
-    }),
     onSubmit: async (values, { resetForm }) => {
       const result = await Swal.fire({
-        title: editId ? 'Banner güncellensin mi?' : 'Yeni banner eklensin mi?',
+        title: editId ? 'Afiş güncellensin mi?' : 'Yeni afiş eklensin mi?',
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: 'Evet',
@@ -95,7 +119,7 @@ const BannerYonetimi: React.FC = () => {
           confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
           cancelButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700',
         },
-      }); 
+      });
 
       if (result.isConfirmed) {
         try {
@@ -120,9 +144,9 @@ const BannerYonetimi: React.FC = () => {
           }
           Swal.fire({
             title: 'Başarılı!',
-            text: editId ? 'Banner güncellendi.' : 'Banner eklendi.',
+            text: editId ? 'Afiş güncellendi.' : 'Afiş eklendi.',
             icon: 'success',
-            showConfirmButton: true, // Bu yoksa buton gözükmez
+            showConfirmButton: true,
             customClass: {
               actions: 'flex justify-center gap-4',
               confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
@@ -139,7 +163,7 @@ const BannerYonetimi: React.FC = () => {
             title: 'Hata!',
             text: 'İşlem sırasında bir hata oluştu.',
             icon: 'error',
-            showConfirmButton: true, // Bu yoksa buton gözükmez
+            showConfirmButton: true,
             customClass: {
               actions: 'flex justify-center gap-4',
               confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
@@ -168,7 +192,7 @@ const BannerYonetimi: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     const result = await Swal.fire({
-      title: 'Banner silinsin mi?',
+      title: 'Afiş silinsin mi?',
       text: 'Bu işlem geri alınamaz!',
       icon: 'warning',
       showCancelButton: true,
@@ -187,9 +211,9 @@ const BannerYonetimi: React.FC = () => {
         await api.delete(`/banners/${id}`);
         Swal.fire({
           title: 'Silindi!',
-          text: 'Banner başarıyla silindi.',
+          text: 'Afiş başarıyla silindi.',
           icon: 'success',
-          showConfirmButton: true, // Bu yoksa buton gözükmez
+          showConfirmButton: true,
           customClass: {
             actions: 'flex justify-center gap-4',
             confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
@@ -202,7 +226,7 @@ const BannerYonetimi: React.FC = () => {
           title: 'Hata!',
           text: 'Silme işlemi başarısız oldu.',
           icon: 'error',
-          showConfirmButton: true, // Bu yoksa buton gözükmez
+          showConfirmButton: true,
           customClass: {
             actions: 'flex justify-center gap-4',
             confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
@@ -236,7 +260,7 @@ const BannerYonetimi: React.FC = () => {
           description: section.description,
           tag: section.tag,
           link: section.link,
-          isActive: !section.isActive, // toggle edilmiş durum
+          isActive: !section.isActive,
           enTitle: section.enTitle,
           enDescription: section.enDescription,
           enTag: section.enTag,
@@ -247,7 +271,7 @@ const BannerYonetimi: React.FC = () => {
           const file = dataURLToFile(decodeImage(section.image[0].imageData));
           formData.append('files', file);
         } else {
-          formData.append('files', new Blob([])); // yoksa boş gönder
+          formData.append('files', new Blob([]));
         }
 
         await api.put(`/banners/${section.id}`, formData, {
@@ -256,9 +280,9 @@ const BannerYonetimi: React.FC = () => {
 
         Swal.fire({
           title: 'Başarılı!',
-          text: 'Banner güncellendi.',
+          text: 'Afiş güncellendi.',
           icon: 'success',
-          showConfirmButton: true, // Bu yoksa buton gözükmez
+          showConfirmButton: true,
           customClass: {
             actions: 'flex justify-center gap-4',
             confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
@@ -271,7 +295,7 @@ const BannerYonetimi: React.FC = () => {
           title: 'Hata!',
           text: 'Durum güncellenemedi.',
           icon: 'error',
-          showConfirmButton: true, // Bu yoksa buton gözükmez
+          showConfirmButton: true,
           customClass: {
             actions: 'flex justify-center gap-4',
             confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
@@ -290,20 +314,51 @@ const BannerYonetimi: React.FC = () => {
     }
   };
 
+  // Metin kısaltma fonksiyonu
+  const truncateText = (text: string | undefined, maxLength: number = 50) => {
+    if (!text) return '';
+    if (text.length > maxLength) {
+      return text.substring(0, maxLength) + '...';
+    }
+    return text;
+  };
+
+  // Metin modalını açma
+  const openTextModal = (content: string) => {
+    setModalContent(content);
+    setModalImage(null);
+    setShowModal(true);
+  };
+
+  // Görsel modalını açma
+  const openImageModal = (imageUrl: string) => {
+    setModalImage(imageUrl);
+    setModalContent(null);
+    setShowModal(true);
+  };
+
+  // Modalı kapatma
+  const closeModal = () => {
+    setShowModal(false);
+    setModalContent(null);
+    setModalImage(null);
+  };
+
   return (
     <Layout>
       <div className="p-6 space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Banner Yönetimi</h1>
+          <h1 className="text-2xl font-bold">Afiş Yönetimi</h1>
           <button
             onClick={() => {
               formik.resetForm();
               setEditId(null);
+              setImageBase64(''); // Reset image when opening form
               setIsFormOpen((prev) => !prev);
             }}
             className="bg-green-600 text-white px-4 py-2 rounded"
           >
-            {isFormOpen ? 'Formu Gizle' : 'Yeni Banner Ekle'}
+            {isFormOpen ? 'Formu Gizle' : 'Yeni Afiş Ekle'}
           </button>
         </div>
 
@@ -313,16 +368,16 @@ const BannerYonetimi: React.FC = () => {
               <input type="text" name="tag" value={formik.values.tag} onChange={formik.handleChange} className="w-full border rounded-md p-2" placeholder="Etiket" />
               <input type="text" name="title" value={formik.values.title} onChange={formik.handleChange} className="w-full border rounded-md p-2" placeholder="Başlık" />
               <textarea name="description" value={formik.values.description} onChange={formik.handleChange} className="w-full border rounded-md p-2 md:col-span-2" placeholder="Açıklama" />
-              <input type="text" name="enTag" value={formik.values.enTag} onChange={formik.handleChange} className="w-full border rounded-md p-2" placeholder="Tag (EN)" />
-              <input type="text" name="enTitle" value={formik.values.enTitle} onChange={formik.handleChange} className="w-full border rounded-md p-2" placeholder="Title (EN)" />
-              <textarea name="enDescription" value={formik.values.enDescription} onChange={formik.handleChange} className="w-full border rounded-md p-2 md:col-span-2" placeholder="Description (EN)" />
+              <input type="text" name="enTag" value={formik.values.enTag} onChange={formik.handleChange} className="w-full border rounded-md p-2" placeholder="Etiket (EN)" />
+              <input type="text" name="enTitle" value={formik.values.enTitle} onChange={formik.handleChange} className="w-full border rounded-md p-2" placeholder="Başlık (EN)" />
+              <textarea name="enDescription" value={formik.values.enDescription} onChange={formik.handleChange} className="w-full border rounded-md p-2 md:col-span-2" placeholder="Açıklama (EN)" />
               <input type="text" name="link" value={formik.values.link} onChange={formik.handleChange} className="w-full border rounded-md p-2" placeholder="Link" />
               <select name="isActive" value={formik.values.isActive.toString()} onChange={formik.handleChange} className="w-full border rounded-md p-2">
                 <option value="true">Aktif</option>
                 <option value="false">Pasif</option>
               </select>
               <input type="file" name="image" accept="image/*" onChange={handleImageUpload} className="md:col-span-2" />
-              {imageBase64 && <img src={imageBase64} alt="Yüklenen görsel" className="h-32 mt-2 rounded" />}
+              {imageBase64 && <img src={imageBase64} alt="Yüklenen görsel" className="h-32 mt-2 rounded object-cover" />}
             </div>
 
             <div className="text-right">
@@ -337,12 +392,12 @@ const BannerYonetimi: React.FC = () => {
           <table className="min-w-full table-auto border-collapse text-sm">
             <thead className="bg-gray-100 text-gray-700">
               <tr>
-                <th className="p-3 border">Tag</th>
-                <th className="p-3 border">EN Tag</th>
+                <th className="p-3 border">Etiket</th>
+                <th className="p-3 border">(EN) Etiket</th>
                 <th className="p-3 border">Başlık</th>
-                <th className="p-3 border">EN Title</th>
+                <th className="p-3 border">(EN) Başlık</th>
                 <th className="p-3 border">Açıklama</th>
-                <th className="p-3 border">EN Açıklama</th>
+                <th className="p-3 border">(EN) Açıklama</th>
                 <th className="p-3 border">Link</th>
                 <th className="p-3 border">Durum</th>
                 <th className="p-3 border">Görsel</th>
@@ -352,23 +407,74 @@ const BannerYonetimi: React.FC = () => {
             <tbody>
               {sections.map((section) => (
                 <tr key={section.id} className="text-center">
-                  <td className="p-3 border">{section.tag}</td>
-                  <td className="p-3 border">{section.enTag}</td>
-                  <td className="p-3 border">{section.title}</td>
-                  <td className="p-3 border">{section.enTitle}</td>
-                  <td className="p-3 border">{section.description}</td>
-                  <td className="p-3 border">{section.enDescription}</td>
-                  <td className="p-3 border">{section.link}</td>
+                  <td
+                    className="p-3 border cursor-pointer hover:bg-gray-50"
+                    onDoubleClick={() => section.tag && openTextModal(section.tag)}
+                  >
+                    {truncateText(section.tag)}
+                  </td>
+                  <td
+                    className="p-3 border cursor-pointer hover:bg-gray-50"
+                    onDoubleClick={() => section.enTag && openTextModal(section.enTag)}
+                  >
+                    {truncateText(section.enTag)}
+                  </td>
+                  <td
+                    className="p-3 border cursor-pointer hover:bg-gray-50"
+                    onDoubleClick={() => section.title && openTextModal(section.title)}
+                  >
+                    {truncateText(section.title)}
+                  </td>
+                  <td
+                    className="p-3 border cursor-pointer hover:bg-gray-50"
+                    onDoubleClick={() => section.enTitle && openTextModal(section.enTitle)}
+                  >
+                    {truncateText(section.enTitle)}
+                  </td>
+                  <td
+                    className="p-3 border cursor-pointer hover:bg-gray-50"
+                    onDoubleClick={() => section.description && openTextModal(section.description)}
+                  >
+                    {truncateText(section.description)}
+                  </td>
+                  <td
+                    className="p-3 border cursor-pointer hover:bg-gray-50"
+                    onDoubleClick={() => section.enDescription && openTextModal(section.enDescription)}
+                  >
+                    {truncateText(section.enDescription)}
+                  </td>
+                  <td
+                    className="p-3 border cursor-pointer hover:bg-gray-50"
+                    onDoubleClick={() => section.link && openTextModal(section.link)}
+                  >
+                    {truncateText(section.link)}
+                  </td>
                   <td className="p-3 border">
                     <span className={section.isActive ? 'text-green-600 font-semibold' : 'text-red-500'}>
                       {section.isActive ? 'Aktif' : 'Pasif'}
                     </span>
                   </td>
                   <td className="p-3 border">
-                    {section.image?.[0]?.imageData && <img src={decodeImage(section.image[0].imageData)} alt="banner" className="h-32 w-32 object-cover rounded-md" />}
+                    {section.image && section.image.length > 0 && section.image[0]?.imageData ? (
+                      <div className="relative group inline-block">
+                        <img
+                          src={decodeImage(section.image[0].imageData)}
+                          alt="banner"
+                          className="h-20 w-20 object-cover rounded-md cursor-pointer"
+                          onClick={() => openImageModal(decodeImage(section.image![0].imageData))}
+                        />
+                        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                          onClick={() => openImageModal(decodeImage(section.image![0].imageData))}>
+                          Büyüt
+                        </div>
+                      </div>
+                    ) : (
+                      <span>Görsel Yok</span>
+                    )}
                   </td>
                   <td className="p-3 border space-x-2">
-                    <button onClick={() => toggleActiveStatus(section)} className={`px-3 py-1 rounded ${section.isActive ? 'bg-gray-500 hover:bg-gray-600' : 'bg-green-600 hover:bg-green-700 text-white'}`}>
+                    <button onClick={() => toggleActiveStatus(section)} className={`${section.isActive ? 'bg-red-500' : 'bg-green-500'
+                      } text-white px-3 py-1 rounded hover:opacity-90`}>
                       {section.isActive ? 'Pasifleştir' : 'Aktifleştir'}
                     </button>
                     <button onClick={() => handleEdit(section)} className="bg-yellow-400 px-3 py-1 rounded hover:bg-yellow-500">Düzenle</button>
@@ -380,6 +486,22 @@ const BannerYonetimi: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Modal Bileşeni */}
+      <Modal isOpen={showModal} onClose={closeModal}>
+        {modalContent && (
+          <div>
+            <h2 className="text-xl font-bold mb-4">Detaylı İçerik</h2>
+            <p className="whitespace-pre-wrap break-words">{modalContent}</p>
+          </div>
+        )}
+        {modalImage && (
+          <div>
+            <h2 className="text-xl font-bold mb-4">Görseli Büyüt</h2>
+            <img src={modalImage} alt="Büyütülmüş Görsel" className="max-w-full h-auto mx-auto" />
+          </div>
+        )}
+      </Modal>
     </Layout>
   );
 };

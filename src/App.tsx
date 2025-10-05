@@ -80,7 +80,7 @@ const LoginPage: React.FC = () => {
           <img
             src={loginImage}
             alt="Login"
-            className="w-full h-32 object-cover rounded-md"
+            className="w-full h-30 rounded-md"
           />
         </div>
         <h2 className="text-2xl font-bold mb-6 text-center">Giriş Yap</h2>

@@ -3,10 +3,10 @@ import { Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 
 const pages = [
-  { path: '/bannerYonetimi', label: 'Banner Yönetimi' },
-  { path: '/dataOfAksuYonetimi', label: 'Data of Aksu Yönetimi' },
+  { path: '/bannerYonetimi', label: 'Afiş Yönetimi' },
+  { path: '/dataOfAksuYonetimi', label: 'Veri Yönetimi' },
   { path: '/referansYonetimi', label: 'Referans Yönetimi' },
-  { path: '/projectYonetimi', label: 'Project Yönetimi' },
+  { path: '/projectYonetimi', label: 'Proje Yönetimi' },
   { path: '/catalogYönetimi', label: 'Katalog Yönetimi' },
   { path: '/brandYonetimi', label: 'Marka Yönetimi' },
   { path: '/brandActivityAreasYonetimi', label: 'Marka Etkinlikleri Alanı Yönetimi' },
@@ -29,7 +29,7 @@ const HomePage: React.FC = () => {
             className="p-6 bg-white rounded-lg shadow hover:shadow-lg hover:bg-gray-50 transition duration-200 border border-gray-200"
           >
             <h3 className="text-lg font-semibold text-blue-600">{page.label}</h3>
-            <p className="text-sm text-gray-500 mt-1">Yönetim sayfasına git</p>
+            <p className="text-sm text-gray-500 mt-1">{page.label} Sayfasına Git</p>
           </Link>
         ))}
       </div>

@@ -57,18 +57,18 @@ const ProjectYonetimi: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [imageBase64, setImageBase64] = useState<string>('');
 
-  const [brands, setBrands] = useState<Brand[]>([]);
+  // const [brands, setBrands] = useState<Brand[]>([]);
 
-  const fetchBrands = async () => {
-    try {
-      const res = await api.get('/field-of-activities'); // API endpoint'ini senin backend'e göre ayarla
-      setBrands(res.data);
-    } catch (err) {
-      console.error('Brand listesi alınamadı', err);
-    }
-  };
+  // const fetchBrands = async () => {
+  //   try {
+  //     const res = await api.get('/field-of-activities'); // API endpoint'ini senin backend'e göre ayarla
+  //     setBrands(res.data);
+  //   } catch (err) {
+  //     console.error('Brand listesi alınamadı', err);
+  //   }
+  // };
   useEffect(() => {
-    fetchBrands();
+    // fetchBrands();
     fetchSections();
   }, []);
   const formik = useFormik({
@@ -141,7 +141,7 @@ const ProjectYonetimi: React.FC = () => {
           await api.post('/project-management', formData);
           Swal.fire('Başarılı!', 'Yeni proje başarıyla eklendi.', 'success');
         }
-        
+
         fetchSections();
         resetForm();
         setImageBase64('');
@@ -280,12 +280,12 @@ const ProjectYonetimi: React.FC = () => {
       );
       // Eğer mevcut görsel varsa, onu da formData'ya ekliyoruz
       if (existing.image && Array.isArray(existing.image) && existing.image[0]?.imageData) {
-          // imageData'yı doğrudan File objesine dönüştürüp eklemiyoruz
-          // Sadece request body'ye eski görsel bilgilerini gönderiyoruz.
-          // Eğer API, PUT işleminde yeni görsel gelmezse eskisini koruyorsa bu yeterlidir.
-          // Aksi takdirde, backend'in mevcut görseli koruma mekanizması olmalıdır.
-          // Frontend'den direkt base64 ile File göndermemeye özen gösteriyoruz eğer API sadece yeni dosya bekliyorsa.
-          // Mevcut durumda, API'nin resmin FormData içinde olmaması durumunda görseli değiştirmediğini varsayalım.
+        // imageData'yı doğrudan File objesine dönüştürüp eklemiyoruz
+        // Sadece request body'ye eski görsel bilgilerini gönderiyoruz.
+        // Eğer API, PUT işleminde yeni görsel gelmezse eskisini koruyorsa bu yeterlidir.
+        // Aksi takdirde, backend'in mevcut görseli koruma mekanizması olmalıdır.
+        // Frontend'den direkt base64 ile File göndermemeye özen gösteriyoruz eğer API sadece yeni dosya bekliyorsa.
+        // Mevcut durumda, API'nin resmin FormData içinde olmaması durumunda görseli değiştirmediğini varsayalım.
       }
       // Eğer mevcut görselin base64'ü varsa ve API bunu dosya olarak bekliyorsa:
       // if (existing.image?.[0]?.imageData) {
@@ -332,7 +332,7 @@ const ProjectYonetimi: React.FC = () => {
       const res = await api.get(`/project-management/${id}`);
       const existing = res.data;
       const formattedProjectDate = new Date(existing.projectDate).toISOString().split('T')[0];
-      
+
       // Sadece isActive değerini değiştiriyoruz, diğerleri aynı kalıyor
       const requestObject = {
         fieldOfActivityId: existing.fieldOfActivity.id,
@@ -356,7 +356,7 @@ const ProjectYonetimi: React.FC = () => {
       );
       // Eğer mevcut görsel varsa, onu da formData'ya ekliyoruz
       if (existing.image && Array.isArray(existing.image) && existing.image[0]?.imageData) {
-          // Yukarıdaki handleToggleCompleted ile aynı mantık, API'nin resim dosyası gelmediğinde mevcut görseli koruduğunu varsayıyoruz.
+        // Yukarıdaki handleToggleCompleted ile aynı mantık, API'nin resim dosyası gelmediğinde mevcut görseli koruduğunu varsayıyoruz.
       }
       // Eğer mevcut görselin base64'ü varsa ve API bunu dosya olarak bekliyorsa:
       // if (existing.image?.[0]?.imageData) {
@@ -396,7 +396,7 @@ const ProjectYonetimi: React.FC = () => {
         {isFormOpen && (
           <form onSubmit={formik.handleSubmit} className="space-y-6 p-6 bg-white rounded-lg shadow-xl">
             {/* Dropdown Menü */}
-            <div className="mb-6">
+            {/* <div className="mb-6">
               <label htmlFor="fieldOfActivityId" className="block text-sm font-semibold text-gray-800">Faaliyet Alanı</label>
               <select
                 id="fieldOfActivityId"
@@ -412,7 +412,7 @@ const ProjectYonetimi: React.FC = () => {
                   </option>
                 ))}
               </select>
-            </div>
+            </div> */}
 
             {/* Başlık ve Müşteri Alanları Yan Yana */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -517,7 +517,7 @@ const ProjectYonetimi: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               {/* En Başlık */}
               <div>
-                <label htmlFor="enTitle" className="block text-sm font-semibold text-gray-800">İngilizce Başlık</label>
+                <label htmlFor="enTitle" className="block text-sm font-semibold text-gray-800">(EN) Başlık</label>
                 <input
                   type="text"
                   id="enTitle"
@@ -530,7 +530,7 @@ const ProjectYonetimi: React.FC = () => {
 
               {/* En Açıklama */}
               <div>
-                <label htmlFor="enDescription" className="block text-sm font-semibold text-gray-800">İngilizce Açıklama</label>
+                <label htmlFor="enDescription" className="block text-sm font-semibold text-gray-800">(EN) Açıklama</label>
                 <textarea
                   id="enDescription"
                   name="enDescription"
@@ -577,24 +577,26 @@ const ProjectYonetimi: React.FC = () => {
           <table className="min-w-full table-auto border-collapse text-sm">
             <thead className="bg-gray-100 text-gray-700">
               <tr>
-                <th className="p-3 border">Faaliyet Alanı</th>
+                {/* <th className="p-3 border">Faaliyet Alanı</th> */}
                 <th className="p-3 border">Başlık</th>
-                <th className="p-3 border">EN Başlık</th>
+                <th className="p-3 border">(EN) Başlık</th>
                 <th className="p-3 border">Açıklama</th>
-                <th className="p-3 border">EN Açıklama</th>
+                <th className="p-3 border">(EN) Açıklama</th>
                 <th className="p-3 border">İş Veren</th>
                 <th className="p-3 border">Yer</th>
                 <th className="p-3 border">Alan</th>
                 <th className="p-3 border">Proje Tarihi</th>
                 <th className="p-3 border">Link</th>
                 <th className="p-3 border">Resimler</th>
+                <th className="p-3 border">Durum</th>
+                <th className="p-3 border">Proje Tamamlandı Mı?</th>
                 <th className="p-3 border">İşlemler</th>
               </tr>
             </thead>
             <tbody>
               {sections.map((section) => (
                 <tr key={section.id} className="text-center hover:bg-gray-50 cursor-pointer">
-                  <td className="p-3 border">{section.fieldOfActivity.title}</td>
+                  {/* <td className="p-3 border">{section.fieldOfActivity.title}</td> */}
                   <td className="p-3 border">{section.title}</td>
                   <td className="p-3 border">{section.enTitle}</td>
                   <td className="p-3 border">{section.enDescription}</td>
@@ -618,6 +620,28 @@ const ProjectYonetimi: React.FC = () => {
                     ) : (
                       <span className="text-gray-400 italic">Yok</span>
                     )}
+                  </td>
+                  <td className="p-3 border">
+                    <span
+                      className={
+                        section.isActive
+                          ? 'text-green-600 font-semibold'
+                          : 'text-red-500'
+                      }
+                    >
+                      {section.isActive ? 'Aktif' : 'Pasif'}
+                    </span>
+                  </td>
+                  <td className="p-3 border">
+                    <span
+                      className={
+                        section.isCompleted
+                          ? 'text-green-600 font-semibold'
+                          : 'text-red-500'
+                      }
+                    >
+                      {section.isCompleted ? 'Evet' : 'Hayır'}
+                    </span>
                   </td>
                   <td className="p-3 border space-x-2">
                     <button

@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import Layout from '../components/Layout';
 import api from '../api';
 import pako from 'pako';
 import { useFormik } from 'formik';
-import * as Yup from 'yup';
 import Swal from 'sweetalert2';
+
+// Types remain the same
 type Section = {
   id: string;
   title: string;
@@ -20,9 +21,11 @@ type Section = {
   brandActivityArea: {
     id: string;
     title: string;
+    brands: any;
   };
 };
 
+// decodeImage function remains the same
 export function decodeImage(imageData: string): string {
   try {
     const binary = atob(imageData);
@@ -44,6 +47,7 @@ export function decodeImage(imageData: string): string {
   }
 }
 
+// fileToBase64 function remains the same
 const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -53,6 +57,7 @@ const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
+// dataURLToFile function remains the same
 const dataURLToFile = (dataUrl: string): File => {
   const arr = dataUrl.split(',');
   const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
@@ -65,14 +70,37 @@ const dataURLToFile = (dataUrl: string): File => {
   return new File([u8arr], 'image.jpg', { type: mime });
 };
 
+// Yeni yardımcı fonksiyon: Metni kısaltma
+const truncateText = (text: string | undefined, maxLength: number = 50): string => {
+  if (!text) return '';
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + '...';
+};
+
 const ProductYonetimi: React.FC = () => {
   const [sections, setSections] = useState<Section[]>([]);
   const [editId, setEditId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [imageBase64, setImageBase64] = useState<string[]>([]); // çoklu
+  const [imageBase64, setImageBase64] = useState<string[]>([]);
   const [certificatesBase64, setCertificatesBase64] = useState<string[]>([]);
-  const [tableImageBase64, setTableImageBase64] = useState<string>(''); // tekli
-  const [brandActivityAreas, setBrandActivityAreas] = useState<{ id: string, title: string }[]>([]);
+  const [tableImageBase64, setTableImageBase64] = useState<string>('');
+  const [brandActivityAreas, setBrandActivityAreas] = useState<{ id: string, title: string, brands: any }[]>([]);
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10); // Number of items per page
+
+  // Text Modal states
+  const [isTextModalOpen, setIsTextModalOpen] = useState(false);
+  const [textModalContent, setTextModalContent] = useState('');
+  const [textModalTitle, setTextModalTitle] = useState('');
+
+  // Image Gallery Modal states
+  const [isGalleryModalOpen, setIsGalleryModalOpen] = useState(false);
+  const [galleryImages, setGalleryImages] = useState<string[]>([]);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [galleryModalTitle, setGalleryModalTitle] = useState('');
+
 
   const fetchBrandActivityAreas = async () => {
     try {
@@ -94,6 +122,16 @@ const ProductYonetimi: React.FC = () => {
     fetchBrandActivityAreas();
   }, []);
 
+  // Calculate total pages and current items to display
+  const totalPages = Math.ceil(sections.length / itemsPerPage);
+  const currentItems = useMemo(() => {
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    return sections.slice(indexOfFirstItem, indexOfLastItem);
+  }, [sections, currentPage, itemsPerPage]);
+
+  const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
+
   const formik = useFormik({
     initialValues: {
       title: '',
@@ -105,14 +143,6 @@ const ProductYonetimi: React.FC = () => {
       brandActivityAreaId: '',
       isActive: false,
     },
-    validationSchema: Yup.object({
-      title: Yup.string().required('Başlık zorunludur'),
-      description: Yup.string().required('Açıklama zorunludur'),
-      brandActivityAreaId: Yup.string().required('Marka alanı zorunlu'),
-      enTitle: Yup.string().required('En Başlık alanı zorunlu'),
-      enDescription: Yup.string().required('En Açıklama alanı zorunlu'),
-      catalogLink: Yup.string().required('Link alanı zorunlu'),
-    }),
     onSubmit: async (values, { resetForm }) => {
       const result = await Swal.fire({
         title: editId ? 'Ürün güncellensin mi?' : 'Yeni ürün eklensin mi?',
@@ -231,20 +261,18 @@ const ProductYonetimi: React.FC = () => {
     if (!result.isConfirmed) return;
 
     try {
-      // Güncel veriyi çek
       const res = await api.get(`/products/${section.id}`);
       const existing = res.data;
 
-      // request objesi
       const requestObject = {
-        brandActivityAreaId: existing.brandActivityArea.id || '',
+        brandActivityAreaId: existing.brandActivityArea?.id || '',
         title: existing.title || '',
         description: existing.description || '',
         hasTable: existing.hasTable || false,
         catalogLink: existing.catalogLink || '',
         enTitle: existing.enTitle || '',
         enDescription: existing.enDescription || '',
-        isActive: !existing.isActive, // toggle burada
+        isActive: !existing.isActive,
       };
 
       const formData = new FormData();
@@ -253,7 +281,6 @@ const ProductYonetimi: React.FC = () => {
         new Blob([JSON.stringify(requestObject)], { type: 'application/json' })
       );
 
-      // mevcut resimleri yeniden ekle
       if (existing.images?.length) {
         existing.images.forEach((img: { imageData: string }) => {
           formData.append('images', dataURLToFile(decodeImage(img.imageData)));
@@ -266,7 +293,7 @@ const ProductYonetimi: React.FC = () => {
         });
       }
 
-      if (existing.tableImage?.imageData) { // Değişiklik burada: [0] kaldırıldı
+      if (existing.tableImage?.imageData) {
         formData.append('tableImage', dataURLToFile(decodeImage(existing.tableImage.imageData)));
       }
 
@@ -278,6 +305,49 @@ const ProductYonetimi: React.FC = () => {
     } catch (err) {
       console.error('Aktiflik güncellenemedi:', err);
     }
+  };
+
+  // Text Modal'ı açan fonksiyon
+  const openTextModal = (content: string, title: string) => {
+    setTextModalContent(content);
+    setTextModalTitle(title);
+    setIsTextModalOpen(true);
+  };
+
+  // Text Modal'ı kapatan fonksiyon
+  const closeTextModal = () => {
+    setIsTextModalOpen(false);
+    setTextModalContent('');
+    setTextModalTitle('');
+  };
+
+  // Image Gallery Modal'ı açan fonksiyon
+  const openGalleryModal = (images: { imageData: string }[] | undefined, title: string) => {
+    if (!images || images.length === 0) return;
+    setGalleryImages(images.map(img => decodeImage(img.imageData)));
+    setCurrentImageIndex(0); // İlk resmi göster
+    setGalleryModalTitle(title);
+    setIsGalleryModalOpen(true);
+  };
+
+  // Image Gallery Modal'ı kapatan fonksiyon
+  const closeGalleryModal = () => {
+    setIsGalleryModalOpen(false);
+    setGalleryImages([]);
+    setCurrentImageIndex(0);
+    setGalleryModalTitle('');
+  };
+
+  // Sonraki görsele geçme
+  const nextImage = () => {
+    setCurrentImageIndex((prevIndex) => (prevIndex + 1) % galleryImages.length);
+  };
+
+  // Önceki görsele geçme
+  const prevImage = () => {
+    setCurrentImageIndex((prevIndex) =>
+      prevIndex === 0 ? galleryImages.length - 1 : prevIndex - 1
+    );
   };
 
 
@@ -305,46 +375,22 @@ const ProductYonetimi: React.FC = () => {
           <form onSubmit={formik.handleSubmit} className="bg-white p-6 rounded-xl shadow space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <select name="brandActivityAreaId" value={formik.values.brandActivityAreaId} onChange={formik.handleChange} className="w-full border rounded-md p-2">
-                <option value="">Marka Seçin</option>
+                <option value="">Marka Etkinlikleri Alanı Seçiniz</option>
                 {brandActivityAreas.map(area => (
-                  <option key={area.id} value={area.id}>{area.title}</option>
+                  <option key={area.id} value={area.id}>
+                    {area.title}
+                    {area.brands && area.brands.length > 0
+                      ? ` - ${area.brands.map((brand: any) => brand.title).join(', ')}`
+                      : ''
+                    }
+                  </option>
                 ))}
               </select>
-              {formik.touched.brandActivityAreaId && formik.errors.brandActivityAreaId && (
-                <div className="text-red-500 text-sm">
-                  {formik.errors.brandActivityAreaId}
-                </div>
-              )}
               <input type="text" name="title" value={formik.values.title} onChange={formik.handleChange} className="w-full border rounded-md p-2" placeholder="Başlık" />
-              {formik.touched.title && formik.errors.title && (
-                <div className="text-red-500 text-sm">
-                  {formik.errors.title}
-                </div>
-              )}
               <input type="text" name="catalogLink" value={formik.values.catalogLink} onChange={formik.handleChange} className="w-full border rounded-md p-2" placeholder="Katalog Linki" />
-              {formik.touched.catalogLink && formik.errors.catalogLink && (
-                <div className="text-red-500 text-sm">
-                  {formik.errors.catalogLink}
-                </div>
-              )}
               <textarea name="description" value={formik.values.description} onChange={formik.handleChange} className="w-full border rounded-md p-2 md:col-span-2" placeholder="Açıklama" />
-              {formik.touched.description && formik.errors.description && (
-                <div className="text-red-500 text-sm">
-                  {formik.errors.description}
-                </div>
-              )}
-              <input type="text" name="enTitle" value={formik.values.enTitle} onChange={formik.handleChange} className="w-full border rounded-md p-2" placeholder="Title (EN)" />
-              {formik.touched.enTitle && formik.errors.enTitle && (
-                <div className="text-red-500 text-sm">
-                  {formik.errors.enTitle}
-                </div>
-              )}
-              <textarea name="enDescription" value={formik.values.enDescription} onChange={formik.handleChange} className="w-full border rounded-md p-2 md:col-span-2" placeholder="Description (EN)" />
-              {formik.touched.enDescription && formik.errors.enDescription && (
-                <div className="text-red-500 text-sm">
-                  {formik.errors.enDescription}
-                </div>
-              )}
+              <input type="text" name="enTitle" value={formik.values.enTitle} onChange={formik.handleChange} className="w-full border rounded-md p-2" placeholder="Başlık (EN)" />
+              <textarea name="enDescription" value={formik.values.enDescription} onChange={formik.handleChange} className="w-full border rounded-md p-2 md:col-span-2" placeholder="Açıklama (EN)" />
               <label className="flex items-center gap-2 md:col-span-2">
                 <input type="checkbox" name="hasTable" checked={formik.values.hasTable} onChange={formik.handleChange} />
                 Tablo içeriyor mu?
@@ -364,7 +410,7 @@ const ProductYonetimi: React.FC = () => {
                   key={idx}
                   src={img}
                   className="h-24 inline-block rounded mr-2"
-                  alt={`Ana görsel ${idx + 1}`} // Anlamlı alt metni
+                  alt={`Ana görsel ${idx + 1}`}
                 />
               ))}
               <label className="md:col-span-2">Sertifikalar (çoklu):
@@ -383,7 +429,7 @@ const ProductYonetimi: React.FC = () => {
                 }} />
               </label>
               {tableImageBase64 && (
-                <img src={tableImageBase64} className="h-24 rounded" alt="Tablo görseli" /> 
+                <img src={tableImageBase64} className="h-24 rounded" alt="Tablo görseli" />
               )}
             </div>
 
@@ -396,73 +442,137 @@ const ProductYonetimi: React.FC = () => {
         )}
 
         <div className="bg-white rounded-xl shadow overflow-x-auto">
-          <table className="min-w-full table-auto border-collapse text-sm">
+          <table className="table-auto border-collapse text-sm w-full">
             <thead className="bg-gray-100 text-gray-700">
               <tr>
-                <th className="p-3 border">Başlık</th>
-                <th className="p-3 border">EN Title</th>
-                <th className="p-3 border">Açıklama</th>
-                <th className="p-3 border">EN Açıklama</th>
-                <th className="p-3 border">Katalog Linki</th>
-                <th className="p-3 border">Tablo İçeriyor mu</th>
-                <th className="p-3 border">Görsel</th>
-                <th className="p-3 border">Serfika Görseli</th>
-                <th className="p-3 border">Tablo Görseli</th>
-                <th className="p-3 border">Aktif mi</th>
-                <th className="p-3 border">İşlemler</th>
+                <th className="p-3 border text-left whitespace-nowrap">Marka Etkinlikleri</th>
+                <th className="p-3 border text-left whitespace-nowrap">Başlık</th>
+                <th className="p-3 border text-left whitespace-nowrap">(EN) Başlık</th>
+                <th className="p-3 border text-left whitespace-nowrap">Açıklama</th>
+                <th className="p-3 border text-left whitespace-nowrap">(EN) Açıklama</th>
+                <th className="p-3 border text-left whitespace-nowrap">Katalog Linki</th>
+                <th className="p-3 border text-left whitespace-nowrap">Tablo İçeriyor mu</th>
+                <th className="p-3 border text-left whitespace-nowrap">Görsel</th>
+                <th className="p-3 border text-left whitespace-nowrap">Sertifika Görseli</th>
+                <th className="p-3 border text-left whitespace-nowrap">Tablo Görseli</th>
+                <th className="p-3 border text-left whitespace-nowrap">Aktif mi</th>
+                <th className="p-3 border text-left whitespace-nowrap">İşlemler</th>
               </tr>
             </thead>
             <tbody>
-              {sections.map(section => (
+              {currentItems.map(section => (
                 <tr key={section.id} className="text-center">
-                  <td className="p-3 border">{section.title}</td>
-                  <td className="p-3 border">{section.enTitle}</td>
-                  <td className="p-3 border">{section.description}</td>
-                  <td className="p-3 border">{section.enDescription}</td>
-                  <td className="p-3 border">{section.catalogLink}</td>
-                  <td className="p-3 border">
+                  <td
+                    className="p-3 border text-left whitespace-nowrap cursor-pointer hover:bg-gray-50"
+                    onDoubleClick={() => openTextModal(section.brandActivityArea?.title + (section?.brandActivityArea?.brands && section?.brandActivityArea?.brands.length > 0 ? ` - ${section?.brandActivityArea?.brands.map((brand: any) => brand.title).join(', ')}` : ''), 'Marka Etkinlikleri')}
+                  >
+                    {truncateText(section.brandActivityArea?.title + (section?.brandActivityArea?.brands && section?.brandActivityArea?.brands.length > 0 ? ` - ${section?.brandActivityArea?.brands.map((brand: any) => brand.title).join(', ')}` : ''), 20)}
+                  </td>
+                  <td
+                    className="p-3 border text-left whitespace-nowrap cursor-pointer hover:bg-gray-50"
+                    onDoubleClick={() => openTextModal(section.title, 'Başlık')}
+                  >
+                    {truncateText(section.title)}
+                  </td>
+                  <td
+                    className="p-3 border text-left whitespace-nowrap cursor-pointer hover:bg-gray-50"
+                    onDoubleClick={() => openTextModal(section.enTitle, '(EN) Başlık')}
+                  >
+                    {truncateText(section.enTitle)}
+                  </td>
+                  <td
+                    className="p-3 border text-left max-w-xs overflow-hidden text-ellipsis cursor-pointer hover:bg-gray-50"
+                    onDoubleClick={() => openTextModal(section.description, 'Açıklama')}
+                  >
+                    {truncateText(section.description)}
+                  </td>
+                  <td
+                    className="p-3 border text-left max-w-xs overflow-hidden text-ellipsis cursor-pointer hover:bg-gray-50"
+                    onDoubleClick={() => openTextModal(section.enDescription, '(EN) Açıklama')}
+                  >
+                    {truncateText(section.enDescription)}
+                  </td>
+                  <td
+                    className="p-3 border text-left whitespace-nowrap cursor-pointer hover:bg-gray-50"
+                    onDoubleClick={() => openTextModal(section.catalogLink, 'Katalog Linki')}
+                  >
+                    {truncateText(section.catalogLink)}
+                  </td>
+                  <td className="p-3 border text-left whitespace-nowrap">
                     <span className={section.hasTable ? 'text-green-600 font-semibold' : 'text-red-500'}>
                       {section.hasTable ? 'Evet' : 'Hayır'}
                     </span>
                   </td>
-                  <td className="p-3 border">
-                    {section.images && section.images.length > 1 ? (
-                      <span>{section.images.length} adet resim var</span>
-                    ) : section.images && section.images.length === 1 ? (
-                      <img
-                        src={decodeImage(section.images[0].imageData)}
-                        className="h-24 w-24 object-cover rounded-md inline-block mr-1"
-                        alt={`Ürün görseli - ${section.title}`} // Anlamlı alt metni
-                      />
+                  {/* Ana Görseller için değişiklik */}
+                  <td className="p-3 border text-left whitespace-nowrap">
+                    {section.images && section.images.length > 0 ? (
+                      <div
+                        className="relative h-16 w-16 group cursor-pointer"
+                        onClick={() => openGalleryModal(section.images, `Ürün Görselleri: ${section.title}`)}
+                      >
+                        <img
+                          src={decodeImage(section.images[0].imageData)} // İlk resmi göster
+                          className="h-16 w-16 object-cover rounded-md"
+                          alt={`Ürün görseli - ${section.title}`}
+                        />
+                        {section.images.length > 1 && (
+                          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white text-xs font-bold rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
+                            Büyüt
+                          </div>
+                        )}
+                      </div>
                     ) : null}
                   </td>
-
-                  <td className="p-3 border">
-                    {section.certificates && section.certificates.length > 1 ? (
-                      <span>{section.certificates.length} adet resim var</span>
-                    ) : section.certificates && section.certificates.length === 1 ? (
-                      <img
-                        src={decodeImage(section.certificates[0].imageData)}
-                        alt={`Sertifika görseli - ${section.title}`} // Anlamlı alt metni
-                        className="h-24 w-24 object-cover rounded-md inline-block mr-1"
-                      />
+                  {/* Sertifika Görselleri için değişiklik */}
+                  <td className="p-3 border text-left whitespace-nowrap">
+                    {section.certificates && section.certificates.length > 0 ? (
+                      <div
+                        className="relative h-16 w-16 group cursor-pointer"
+                        onClick={() => openGalleryModal(section.certificates, `Sertifika Görselleri: ${section.title}`)}
+                      >
+                        <img
+                          src={decodeImage(section.certificates[0].imageData)} // İlk sertifika resmini göster
+                          className="h-16 w-16 object-cover rounded-md"
+                          alt={`Sertifika görseli - ${section.title}`}
+                        />
+                        {section.certificates.length > 1 && (
+                          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white text-xs font-bold rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
+                            Büyüt
+                          </div>
+                        )}
+                      </div>
                     ) : null}
                   </td>
-                  <td className="p-3 border">
-                    {section.tableImage?.imageData && <img src={decodeImage(section.tableImage.imageData)} alt={`Tablo görseli - ${section.title}`} className="h-24 w-24 object-cover rounded-md" />} {/* Anlamlı alt metni */}
+                  <td className="p-3 border text-left whitespace-nowrap">
+                    {section.tableImage?.imageData ? (
+                      <div
+                        className="relative h-16 w-16 group cursor-pointer"
+                        onClick={() => openGalleryModal([section.tableImage!], `Tablo Görseli: ${section.title}`)}
+                      >
+                        <img
+                          src={decodeImage(section.tableImage.imageData)}
+                          alt={`Tablo görseli - ${section.title}`}
+                          className="h-16 w-16 object-cover rounded-md"
+                        />
+                        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white text-xs font-bold rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
+                          Büyüt
+                        </div>
+                      </div>
+                    ) : null}
                   </td>
-                  <td className="p-3 border">
+                  <td className="p-3 border text-left whitespace-nowrap">
                     <span className={section.isActive ? 'text-green-600 font-semibold' : 'text-red-500'}>
                       {section.isActive ? 'Evet' : 'Hayır'}
                     </span>
                   </td>
-                  <td className="p-3 border space-x-2">
+                  <td className="p-3 border text-left whitespace-nowrap space-x-2">
                     <button onClick={() => toggleActiveStatus(section)}
-                      className={`px-3 py-1 rounded ${section.isActive ? 'bg-gray-500 hover:bg-gray-600' : 'bg-green-600 hover:bg-green-700 text-white'}`}>
+                      className={`${section.isActive ? 'bg-red-500' : 'bg-green-500'
+                        } text-white px-3 py-1 rounded hover:opacity-90`}>
                       {section.isActive ? 'Pasifleştir' : 'Aktifleştir'}
                     </button>
                     <button onClick={() => handleEdit(section)}
-                      className="bg-yellow-400 px-3 py-1 rounded hover:bg-yellow-500">Düzenle</button>
+                      className="bg-yellow-400 px-3 py-1 rounded hover:bg-yellow-500 text-white">Düzenle</button>
                     <button onClick={() => handleDelete(section.id)}
                       className="bg-red-600 px-3 py-1 rounded text-white hover:bg-red-700">Sil</button>
                   </td>
@@ -471,7 +581,122 @@ const ProductYonetimi: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        <div className="flex justify-center mt-4">
+          <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+            <button
+              onClick={() => paginate(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Önceki
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => (
+              <button
+                key={i + 1}
+                onClick={() => paginate(i + 1)}
+                className={`relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium ${currentPage === i + 1 ? 'z-10 bg-blue-50 border-blue-500 text-blue-600' : 'text-gray-700 hover:bg-gray-50'
+                  }`}
+              >
+                {i + 1}
+              </button>
+            ))}
+            <button
+              onClick={() => paginate(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Sonraki
+            </button>
+          </nav>
+          <div className="ml-4 flex items-center">
+            <label htmlFor="items-per-page" className="sr-only">Items per page</label>
+            <select
+              id="items-per-page"
+              value={itemsPerPage}
+              onChange={(e) => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1); // Reset to first page when changing items per page
+              }}
+              className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+            >
+              <option value={5}>5 / Sayfa</option>
+              <option value={10}>10 / Sayfa</option>
+              <option value={20}>20 / Sayfa</option>
+              <option value={50}>50 / Sayfa</option>
+            </select>
+          </div>
+        </div>
       </div>
+
+      {/* Text Modal Component */}
+      {isTextModalOpen && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
+          <div className="relative p-5 border w-1/2 shadow-lg rounded-md bg-white">
+            <h3 className="text-xl font-bold mb-4">{textModalTitle}</h3>
+            <div className="mt-3 text-center">
+              <p className="text-gray-900 text-left whitespace-pre-wrap break-words">{textModalContent}</p>
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={closeTextModal}
+                  className="px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                  Kapat
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Gallery Modal Component */}
+      {isGalleryModalOpen && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
+          <div className="relative p-5 border w-11/12 md:w-3/4 lg:w-1/2 max-h-[90vh] shadow-lg rounded-md bg-white flex flex-col items-center">
+            <h3 className="text-xl font-bold mb-4 text-center">{galleryModalTitle}</h3>
+            <div className="relative w-full flex items-center justify-center mb-4">
+              {/* Prev Button */}
+              {galleryImages.length > 1 && (
+                <button
+                  onClick={prevImage}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 bg-gray-800 text-white p-2 rounded-full z-10 opacity-75 hover:opacity-100 transition-opacity"
+                >
+                  &#8249; {/* Left arrow */}
+                </button>
+              )}
+              {/* Current Image */}
+              <img
+                src={galleryImages[currentImageIndex]}
+                alt={`${galleryModalTitle} - ${currentImageIndex + 1}`}
+                className="max-w-full max-h-[60vh] object-contain rounded-md"
+              />
+              {/* Next Button */}
+              {galleryImages.length > 1 && (
+                <button
+                  onClick={nextImage}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 bg-gray-800 text-white p-2 rounded-full z-10 opacity-75 hover:opacity-100 transition-opacity"
+                >
+                  &#8250; {/* Right arrow */}
+                </button>
+              )}
+            </div>
+            {galleryImages.length > 1 && (
+              <div className="text-sm text-gray-600 mb-4">
+                {currentImageIndex + 1} / {galleryImages.length}
+              </div>
+            )}
+            <div className="mt-auto flex justify-end w-full"> {/* Kapat düğmesini en alta al */}
+              <button
+                onClick={closeGalleryModal}
+                className="px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };

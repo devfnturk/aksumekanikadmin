@@ -3,7 +3,6 @@ import Layout from '../components/Layout';
 import api from '../api';
 import pako from 'pako';
 import { useFormik } from 'formik';
-import * as Yup from 'yup';
 import Swal from 'sweetalert2';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -78,14 +77,6 @@ const BrandActivityAreasYonetimi: React.FC = () => {
       enTitle: '',
       enDescription: '',
     },
-    validationSchema: Yup.object({
-      brandId: Yup.string().required('Marka zorunludur'),
-      title: Yup.string().required('Başlık zorunludur'),
-      description: Yup.string().required('Açıklama zorunludur'),
-      enTitle: Yup.string().required('EN Başlık zorunludur'),
-      enDescription: Yup.string().required('EN Açıklama zorunludur'),
-      isActive: Yup.boolean(),
-    }),
     onSubmit: async (values, { resetForm }) => {
       try {
         const result = await Swal.fire({
@@ -168,7 +159,7 @@ const BrandActivityAreasYonetimi: React.FC = () => {
       .get('/brand-activity-areas')
       .then((res) => {
         setSections(res.data);
-        console.log("res.data",res.data)
+        console.log("res.data", res.data)
       })
       .catch((err) => {
         console.error('Veri çekme hatası', err);
@@ -190,23 +181,23 @@ const BrandActivityAreasYonetimi: React.FC = () => {
     }
   };
 
- const handleEdit = (section: Section) => {
-  formik.setValues({
-    title: section.title || '',
-    description: section.description || '',
-    isActive: section.isActive,
-    enTitle: section.enTitle || '',
-    enDescription: section.enDescription || '',
-    brandId: section.brands?.[0]?.id || '', // ✅ artık array üzerinden
-  });
+  const handleEdit = (section: Section) => {
+    formik.setValues({
+      title: section.title || '',
+      description: section.description || '',
+      isActive: section.isActive,
+      enTitle: section.enTitle || '',
+      enDescription: section.enDescription || '',
+      brandId: section.brands?.[0]?.id || '', // ✅ artık array üzerinden
+    });
 
-  setImageBase64(
-    section.image?.[0]?.imageData ? decodeImage(section.image[0].imageData) : ''
-  );
+    setImageBase64(
+      section.image?.[0]?.imageData ? decodeImage(section.image[0].imageData) : ''
+    );
 
-  setEditId(section.id);
-  setIsFormOpen(true);
-};
+    setEditId(section.id);
+    setIsFormOpen(true);
+  };
 
 
   const handleDelete = async (id: string) => {
@@ -303,7 +294,7 @@ const BrandActivityAreasYonetimi: React.FC = () => {
     <Layout>
       <div className="p-6 space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Brand Activity Areas Yönetimi</h1>
+          <h1 className="text-2xl font-bold">Marka Etkinlikleri Alanı Yönetimi</h1>
           <button
             onClick={() => {
               formik.resetForm();
@@ -312,7 +303,7 @@ const BrandActivityAreasYonetimi: React.FC = () => {
             }}
             className="bg-green-600 text-white px-4 py-2 rounded"
           >
-            {isFormOpen ? 'Formu Gizle' : 'Yeni Brand Activity Areas Ekle'}
+            {isFormOpen ? 'Formu Gizle' : 'Yeni Marka Etkinlikleri Alanı Ekle'}
           </button>
         </div>
 
@@ -336,11 +327,6 @@ const BrandActivityAreasYonetimi: React.FC = () => {
                     </option>
                   ))}
                 </select>
-                {formik.touched.brandId && formik.errors.brandId && (
-                  <div className="text-red-500 text-sm">
-                    {formik.errors.brandId}
-                  </div>
-                )}
               </div>
 
               <div>
@@ -353,11 +339,6 @@ const BrandActivityAreasYonetimi: React.FC = () => {
                   className="w-full border rounded-md p-2"
                   placeholder="Başlık"
                 />
-                {formik.touched.title && formik.errors.title && (
-                  <div className="text-red-500 text-sm">
-                    {formik.errors.title}
-                  </div>
-                )}
               </div>
 
               <div className="md:col-span-2">
@@ -382,25 +363,17 @@ const BrandActivityAreasYonetimi: React.FC = () => {
                 value={formik.values.enTitle}
                 onChange={formik.handleChange}
                 className="w-full border rounded-md p-2"
-                placeholder="Title (EN)"
+                placeholder="Başlık (EN)"
               />
-              {formik.touched.enTitle && formik.errors.enTitle && (
-                <div className="text-red-500 text-sm">
-                  {formik.errors.enTitle}
-                </div>
-              )}
+
               <textarea
                 name="enDescription"
                 value={formik.values.enDescription}
                 onChange={formik.handleChange}
                 className="w-full border rounded-md p-2 md:col-span-2"
-                placeholder="Description (EN)"
+                placeholder="Açıklama (EN)"
               />
-              {formik.touched.enDescription && formik.errors.enDescription && (
-                <div className="text-red-500 text-sm">
-                  {formik.errors.enDescription}
-                </div>
-              )}
+
               <select
                 name="isActive"
                 value={formik.values.isActive.toString()}
@@ -444,9 +417,9 @@ const BrandActivityAreasYonetimi: React.FC = () => {
               <tr>
                 <th className="p-3 border">Marka</th>
                 <th className="p-3 border">Başlık</th>
-                <th className="p-3 border">EN Title</th>
+                <th className="p-3 border">(EN) Başlık</th>
                 <th className="p-3 border">Açıklama</th>
-                <th className="p-3 border">EN Açıklama</th>
+                <th className="p-3 border">(EN) Açıklama</th>
                 <th className="p-3 border">Durum</th>
                 <th className="p-3 border">Görsel</th>
                 <th className="p-3 border">İşlemler</th>
@@ -483,10 +456,8 @@ const BrandActivityAreasYonetimi: React.FC = () => {
                   <td className="p-3 border space-x-2">
                     <button
                       onClick={() => toggleActiveStatus(section.id)}
-                      className={`px-3 py-1 rounded ${section.isActive
-                        ? 'bg-gray-500 hover:bg-gray-600'
-                        : 'bg-green-600 hover:bg-green-700 text-white'
-                        }`}
+                      className={`${section.isActive ? 'bg-red-500' : 'bg-green-500'
+                        } text-white px-3 py-1 rounded hover:opacity-90`}
                     >
                       {section.isActive ? 'Pasifleştir' : 'Aktifleştir'}
                     </button>

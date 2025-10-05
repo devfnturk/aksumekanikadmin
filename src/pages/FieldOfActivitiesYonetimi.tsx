@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useFormik } from 'formik';
-import * as Yup from 'yup';
 import Layout from '../components/Layout';
 import api from '../api';
 import pako from 'pako';
@@ -66,10 +65,6 @@ const FieldOfActivitiesYonetimi: React.FC = () => {
       enTitle: '',
       enDescription: '',
     },
-    validationSchema: Yup.object({
-      title: Yup.string().required('Başlık zorunlu'),
-      description: Yup.string().required('Link zorunlu'),
-    }),
     onSubmit: async (values, { resetForm }) => {
       try {
         const formData = new FormData();
@@ -220,9 +215,6 @@ const FieldOfActivitiesYonetimi: React.FC = () => {
                 onChange={formik.handleChange}
                 className="w-full border rounded-md p-2"
               />
-              {formik.touched.title && formik.errors.title && (
-                <div className="text-red-500 text-sm">{formik.errors.title}</div>
-              )}
             </div>
             <div>
               <label className="block font-semibold mb-1">En Başlık</label>
@@ -232,9 +224,6 @@ const FieldOfActivitiesYonetimi: React.FC = () => {
                 onChange={formik.handleChange}
                 className="w-full border rounded-md p-2"
               />
-              {formik.touched.enTitle && formik.errors.enTitle && (
-                <div className="text-red-500 text-sm">{formik.errors.enTitle}</div>
-              )}
             </div>
             <div>
               <label className="block font-semibold mb-1">Açıklama</label>
@@ -244,9 +233,6 @@ const FieldOfActivitiesYonetimi: React.FC = () => {
                 onChange={formik.handleChange}
                 className="w-full border rounded-md p-2"
               />
-              {formik.touched.description && formik.errors.description && (
-                <div className="text-red-500 text-sm">{formik.errors.description}</div>
-              )}
             </div>
             <div>
               <label className="block font-semibold mb-1">En Açıklama</label>
@@ -256,9 +242,6 @@ const FieldOfActivitiesYonetimi: React.FC = () => {
                 onChange={formik.handleChange}
                 className="w-full border rounded-md p-2"
               />
-              {formik.touched.enDescription && formik.errors.enDescription && (
-                <div className="text-red-500 text-sm">{formik.errors.enDescription}</div>
-              )}
             </div>
             <div>
               <label className="block font-semibold mb-1">Durum</label>
