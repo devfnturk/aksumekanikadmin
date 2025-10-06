@@ -341,13 +341,13 @@ const CatalogYönetimi: React.FC = () => {
             <tbody>
               {sections.map((section) => (
                 <tr key={section.id} className="text-center">
-                  <td className="p-3 border"
+                  <td className="p-3 border  hover:bg-gray-50"
                    onDoubleClick={() => openTextModalWithContent(section.title)}
                   > {truncateText(section.title, 50)}</td>
-                  <td className="p-3 border"
+                  <td className="p-3 border  hover:bg-gray-50"
                    onDoubleClick={() => openTextModalWithContent(section.link)}
                   > {truncateText(section.link, 50)}</td>
-                  <td className="p-3 border">
+                  <td className="p-3 border ">
                     <span className={section.isActive ? 'text-green-600 font-semibold' : 'text-red-500'}>
                       {section.isActive ? 'Aktif' : 'Pasif'}
                     </span>

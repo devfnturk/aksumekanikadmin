@@ -79,9 +79,11 @@ const Header: React.FC = () => {
                                     <Link to="/referansYonetimi" className="block px-4 py-2 hover:bg-gray-100">Referans Yönetimi</Link>
                                     <Link to="/projectYonetimi" className="block px-4 py-2 hover:bg-gray-100">Proje Yönetimi</Link>
                                     <Link to="/catalogYönetimi" className="block px-4 py-2 hover:bg-gray-100">Katalog Yönetimi</Link>
+                                    <Link to="/brandActivityMarkaYonetimi" className="block px-4 py-2 hover:bg-gray-100">Faaliyet Alanı Yönetimi</Link>
                                     <Link to="/brandYonetimi" className="block px-4 py-2 hover:bg-gray-100">Marka Yönetimi</Link>
                                     <Link to="/brandActivityAreasYonetimi" className="block px-4 py-2 hover:bg-gray-100">Marka Etkinlikleri Alanı Yönetimi</Link>
                                     <Link to="/productYonetimi" className="block px-4 py-2 hover:bg-gray-100">Ürün Yönetimi</Link>
+                                    
                                 </div>
                             )}
                         </div>

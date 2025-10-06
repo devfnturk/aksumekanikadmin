@@ -457,14 +457,14 @@ const ReferansYonetimi: React.FC = () => {
               {sections.map((section) => (
                 <tr key={section.id} className="text-center">
                   <td
-                    className="p-3 border text-left max-w-xs truncate cursor-pointer hover:underline"
+                    className="p-3 border  hover:bg-gray-50"
                     onDoubleClick={() => openTextModalWithContent(section.title)}
                     title={section.title.length > 50 ? section.title : undefined}
                   >
                     {truncateText(section.title, 50)}
                   </td>
                   <td
-                    className="p-3 border text-left max-w-xs truncate cursor-pointer hover:underline"
+                    className="p-3 border  hover:bg-gray-50"
                     onDoubleClick={() => openTextModalWithContent(section.link)}
                     title={section.link.length > 50 ? section.link : undefined}
                   >

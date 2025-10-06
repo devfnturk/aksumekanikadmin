@@ -4,13 +4,13 @@ import api from '../api';
 import pako from 'pako';
 import { useFormik } from 'formik';
 import Swal from 'sweetalert2';
-import 'sweetalert2/dist/sweetalert2.min.css';
+import 'react-toastify/dist/ReactToastify.css';
 
 type Section = {
   id: string;
+  image?: { imageData: string }[];
   title: string;
   description: string;
-  image?: { imageData: string }[];
   isActive: boolean;
   enTitle: string;
   enDescription: string;
@@ -39,23 +39,88 @@ export function decodeImage(imageData: string): string {
   }
 }
 
-const BrandYonetimi: React.FC = () => {
+const BrandActivityMarkaYonetimi: React.FC = () => {
+  useEffect(() => {
+    fetchSections();
+  }, []);
   const [sections, setSections] = useState<Section[]>([]);
   const [editId, setEditId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [imageBase64, setImageBase64] = useState<string>('');
   const [modalContent, setModalContent] = useState<string | null>(null); // Metin modal içeriği
   const [imageModalContent, setImageModalContent] = useState<string | null>(null); // Görsel modal içeriği
-  const fetchSections = () => {
-    api
-      .get('/brands')
-      .then((res) => setSections(res.data))
-      .catch((err) => console.error('Veri çekme hatası', err));
-  };
 
-  useEffect(() => {
-    fetchSections();
-  }, []);
+  const formik = useFormik({
+    initialValues: {
+      title: '',
+      isActive: true,
+      description: '',
+      enTitle: '',
+      enDescription: '',
+    },
+    onSubmit: async (values, { resetForm }) => {
+      try {
+        const result = await Swal.fire({
+          title: editId ? 'Güncelleme onayı' : 'Ekleme onayı',
+          text: editId
+            ? 'Bu kaydı güncellemek istediğinize emin misiniz?'
+            : 'Yeni kayıt eklemek istediğinize emin misiniz?',
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: 'Evet',
+          cancelButtonText: 'Hayır',
+          buttonsStyling: false,
+          reverseButtons: true, // Butonların yerini değiştirir (cancel solda olur)
+          customClass: {
+            popup: 'rounded-xl shadow-lg',
+            title: 'text-xl font-semibold',
+            htmlContainer: 'text-gray-700',
+            actions: 'flex justify-center gap-4 mt-4',
+            confirmButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700',
+            cancelButton: 'bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400',
+          },
+        });
+
+        if (!result.isConfirmed) return;
+
+        const formData = new FormData();
+
+        const requestObject = {
+          title: values.title,
+          description: values.description,
+          isActive: values.isActive,
+          enTitle: values.enTitle,
+          enDescription: values.enDescription,
+        };
+
+        formData.append(
+          'request',
+          new Blob([JSON.stringify(requestObject)], { type: 'application/json' })
+        );
+
+        if (imageBase64) {
+          const file = dataURLToFile(imageBase64);
+          formData.append('files', file); // array olarak files[] bekliyorsa adını 'files' tut
+        }
+        console.log("formData", formData)
+        if (editId) {
+          await api.put(`/field-of-activities/${editId}`, formData);
+          Swal.fire('Başarılı', 'Kayıt güncellendi', 'success');
+        } else {
+          await api.post('/field-of-activities', formData);
+          Swal.fire('Başarılı', 'Yeni kayıt eklendi', 'success');
+        }
+        fetchSections();
+        resetForm();
+        setImageBase64('');
+        setEditId(null);
+        setIsFormOpen(false);
+      } catch (err) {
+        Swal.fire('Hata', 'İşlem sırasında hata oluştu', 'error');
+        console.error('Form gönderme hatası:', err);
+      }
+    },
+  });
 
   const dataURLToFile = (dataUrl: string) => {
     const arr = dataUrl.split(',');
@@ -69,201 +134,148 @@ const BrandYonetimi: React.FC = () => {
     return new File([u8arr], 'image.jpg', { type: mime });
   };
 
+  const fetchSections = () => {
+    api
+      .get('/field-of-activities')
+      .then((res) => {
+        setSections(res.data);
+        console.log("res.data", res.data)
+      })
+      .catch((err) => {
+        console.error('Veri çekme hatası', err);
+      });
+  };
+
+  useEffect(() => {
+    fetchSections();
+  }, []);
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => setImageBase64(reader.result as string);
+      reader.onloadend = () => {
+        setImageBase64(reader.result as string);
+      };
       reader.readAsDataURL(file);
     }
   };
 
-  const formik = useFormik({
-    initialValues: {
-      title: '',
-      isActive: true,
-      description: '',
-      enTitle: '',
-      enDescription: '',
-    },
-    onSubmit: async (values, { resetForm }) => {
-      // Önce validation
-      const errors = await formik.validateForm();
-      if (Object.keys(errors).length > 0) return;
-
-      const confirm = await Swal.fire({
-        title: editId ? 'Güncelleme Onayı' : 'Ekleme Onayı',
-        text: editId
-          ? 'Bu içeriği güncellemek istiyor musunuz?'
-          : 'Yeni içerik eklemek istiyor musunuz?',
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: 'Evet',
-        cancelButtonText: 'Hayır',
-        customClass: {
-          popup: 'rounded-xl shadow-lg',
-          confirmButton:
-            'bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 mr-2',
-          cancelButton:
-            'bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400',
-        },
-      });
-
-      if (!confirm.isConfirmed) return;
-
-      try {
-        const formData = new FormData();
-        const requestObject = {
-          title: values.title,
-          isActive: values.isActive,
-          description: values.description,
-          enTitle: values.enTitle,
-          enDescription: values.enDescription,
-        };
-
-        formData.append(
-          'request',
-          new Blob([JSON.stringify(requestObject)], { type: 'application/json' })
-        );
-
-        if (imageBase64) {
-          formData.append('files', dataURLToFile(imageBase64));
-        }
-
-        if (editId) {
-          await api.put(`/brands/${editId}`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-          });
-          Swal.fire({
-            title: 'Başarılı!',
-            text: 'İçerik güncellendi.',
-            icon: 'success',
-            timer: 1500,
-            showConfirmButton: false,
-          });
-        } else {
-          await api.post('/brands', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-          });
-          Swal.fire({
-            title: 'Başarılı!',
-            text: 'Yeni içerik eklendi.',
-            icon: 'success',
-            timer: 1500,
-            showConfirmButton: false,
-          });
-        }
-
-        resetForm();
-        setImageBase64('');
-        setEditId(null);
-        setIsFormOpen(false);
-        fetchSections();
-      } catch (err) {
-        console.error('Form gönderme hatası:', err);
-        Swal.fire({
-          title: 'Hata!',
-          text: 'İşlem sırasında bir hata oluştu.',
-          icon: 'error',
-          confirmButtonText: 'Tamam',
-        });
-      }
-    },
-  });
-
   const handleEdit = (section: Section) => {
     formik.setValues({
-      title: section.title,
-      description: section.description,
-      enTitle: section.enTitle,
-      enDescription: section.enDescription,
+      title: section.title || '',
+      description: section.description || '',
       isActive: section.isActive,
+      enTitle: section.enTitle || '',
+      enDescription: section.enDescription || '',
     });
-    setImageBase64(section.image?.[0]?.imageData ? decodeImage(section.image[0].imageData) : '');
+
+    setImageBase64(
+      section.image?.[0]?.imageData ? decodeImage(section.image[0].imageData) : ''
+    );
+
     setEditId(section.id);
     setIsFormOpen(true);
   };
 
+
   const handleDelete = async (id: string) => {
-    const confirm = await Swal.fire({
-      title: 'Emin misiniz?',
-      text: 'Bu içeriği silmek üzeresiniz!',
+    const result = await Swal.fire({
+      title: 'Silme onayı',
+      text: 'Bu kaydı silmek istediğinize emin misiniz?',
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonText: 'Evet, sil!',
+      confirmButtonText: 'Evet',
       cancelButtonText: 'Hayır',
+      buttonsStyling: false,
+      reverseButtons: true, // Butonların yerini değiştirir (cancel solda olur)
       customClass: {
         popup: 'rounded-xl shadow-lg',
-        confirmButton:
-          'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 mr-2',
-        cancelButton:
-          'bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400',
+        title: 'text-xl font-semibold',
+        htmlContainer: 'text-gray-700',
+        actions: 'flex justify-center gap-4 mt-4',
+        confirmButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700',
+        cancelButton: 'bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400',
       },
     });
 
-    if (!confirm.isConfirmed) return;
+    if (!result.isConfirmed) return;
 
-    try {
-      await api.delete(`/brands/${id}`);
-      Swal.fire({
-        title: 'Silindi!',
-        text: 'İçerik başarıyla silindi.',
-        icon: 'success',
-        timer: 1500,
-        showConfirmButton: false,
+    api
+      .delete(`/field-of-activities/${id}`)
+      .then(() => {
+        fetchSections();
+        Swal.fire('Başarılı', 'Kayıt silindi', 'success');
+      })
+      .catch(() => {
+        Swal.fire('Hata', 'Kayıt silinemedi', 'error');
       });
-      fetchSections();
-    } catch (err) {
-      console.error('Silme hatası:', err);
-      Swal.fire({
-        title: 'Hata!',
-        text: 'Silme işlemi başarısız oldu.',
-        icon: 'error',
-        confirmButtonText: 'Tamam',
-      });
-    }
   };
 
   const toggleActiveStatus = async (id: string) => {
-    try {
-      const res = await api.get(`/brands/${id}`);
-      const existing = res.data;
+    const result = await Swal.fire({
+      title: 'Durum değiştirme',
+      text: 'Bu kaydın aktiflik durumunu değiştirmek istediğinize emin misiniz?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Evet',
+      cancelButtonText: 'Hayır',
+      buttonsStyling: false,
+      reverseButtons: true, // Butonların yerini değiştirir (cancel solda olur)
+      customClass: {
+        popup: 'rounded-xl shadow-lg',
+        title: 'text-xl font-semibold',
+        htmlContainer: 'text-gray-700',
+        actions: 'flex justify-center gap-4 mt-4',
+        confirmButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700',
+        cancelButton: 'bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400',
+      },
+    });
 
+    if (!result.isConfirmed) return;
+
+    try {
+      const res = await api.get(`/field-of-activities/${id}`);
+      const existing = res.data;
       const formData = new FormData();
       const updatedSection = {
+        isActive: !existing.isActive,
         title: existing.title || '',
         description: existing.description || '',
         enTitle: existing.enTitle || '',
         enDescription: existing.enDescription || '',
-        isActive: !existing.isActive,
       };
-
       formData.append(
         'request',
-        new Blob([JSON.stringify(updatedSection)], { type: 'application/json' })
+        new Blob([JSON.stringify(updatedSection)], {
+          type: 'application/json',
+        })
       );
-
       if (existing.image?.[0]?.imageData) {
         const decoded = decodeImage(existing.image[0].imageData);
-        formData.append('files', dataURLToFile(decoded));
+        const file = dataURLToFile(decoded);
+        formData.append('files', file);
       }
 
-      await api.put(`/brands/${id}`, formData, {
+      await api.put(`/field-of-activities/${id}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       fetchSections();
+      Swal.fire('Başarılı', 'Durum güncellendi', 'success');
     } catch (err) {
+      Swal.fire('Hata', 'Aktiflik güncellenemedi', 'error');
       console.error('Aktiflik güncellenemedi:', err);
-      Swal.fire({
-        title: 'Hata!',
-        text: 'Durum güncellenemedi.',
-        icon: 'error',
-        confirmButtonText: 'Tamam',
-      });
     }
   };
+  const getDecodedImage = (section: Section): string | null => {
+    const imageObj = Array.isArray(section.image) ? section.image[0] : null;
+    const encoded = imageObj?.imageData;
+    return encoded ? decodeImage(encoded) : null;
+  };
+
   // Metin kısaltma fonksiyonu
-  const truncateText = (text: string, maxLength: number) => {
+  const truncateText = (text: string | undefined, maxLength: number = 50) => {
+    if (!text) return '';
     if (text.length > maxLength) {
       return text.substring(0, maxLength) + '...';
     }
@@ -289,16 +301,11 @@ const BrandYonetimi: React.FC = () => {
   const closeImageModal = () => {
     setImageModalContent(null);
   };
-  const getDecodedImage = (section: Section): string | null => {
-    const imageObj = Array.isArray(section.image) ? section.image[0] : null;
-    const encoded = imageObj?.imageData;
-    return encoded ? decodeImage(encoded) : null;
-  };
   return (
     <Layout>
       <div className="p-6 space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Marka Yönetimi</h1>
+          <h1 className="text-2xl font-bold">Faaliyet Alanı Yönetimi</h1>
           <button
             onClick={() => {
               formik.resetForm();
@@ -307,7 +314,7 @@ const BrandYonetimi: React.FC = () => {
             }}
             className="bg-green-600 text-white px-4 py-2 rounded"
           >
-            {isFormOpen ? 'Formu Gizle' : 'Yeni Marka Ekle'}
+            {isFormOpen ? 'Formu Gizle' : 'Faaliyet Alanı Ekle'}
           </button>
         </div>
 
@@ -317,7 +324,7 @@ const BrandYonetimi: React.FC = () => {
             className="bg-white p-6 rounded-xl shadow space-y-6"
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="col-span-1 md:col-span-2">
+              <div>
                 <input
                   type="text"
                   name="title"
@@ -329,7 +336,7 @@ const BrandYonetimi: React.FC = () => {
                 />
               </div>
 
-              <div className="col-span-1 md:col-span-2">
+              <div className="md:col-span-2">
                 <textarea
                   name="description"
                   value={formik.values.description}
@@ -338,6 +345,11 @@ const BrandYonetimi: React.FC = () => {
                   className="w-full border rounded-md p-2"
                   placeholder="Açıklama"
                 />
+                {formik.touched.description && formik.errors.description && (
+                  <div className="text-red-500 text-sm">
+                    {formik.errors.description}
+                  </div>
+                )}
               </div>
 
               <input
@@ -348,6 +360,7 @@ const BrandYonetimi: React.FC = () => {
                 className="w-full border rounded-md p-2"
                 placeholder="Başlık (EN)"
               />
+
               <textarea
                 name="enDescription"
                 value={formik.values.enDescription}
@@ -355,6 +368,7 @@ const BrandYonetimi: React.FC = () => {
                 className="w-full border rounded-md p-2 md:col-span-2"
                 placeholder="Açıklama (EN)"
               />
+
               <select
                 name="isActive"
                 value={formik.values.isActive.toString()}
@@ -408,14 +422,10 @@ const BrandYonetimi: React.FC = () => {
             <tbody>
               {sections.map((section) => (
                 <tr key={section.id} className="text-center">
-                  <td className="p-3 border  hover:bg-gray-50"
-                    onDoubleClick={() => openTextModalWithContent(section.title)}>{truncateText(section.title, 50)}</td>
-                  <td className="p-3 border  hover:bg-gray-50"
-                    onDoubleClick={() => openTextModalWithContent(section.enTitle)}>{truncateText(section.enTitle, 50)}</td>
-                  <td className="p-3 border  hover:bg-gray-50"
-                    onDoubleClick={() => openTextModalWithContent(section.description)}>{truncateText(section.description, 50)}</td>
-                  <td className="p-3 border  hover:bg-gray-50"
-                    onDoubleClick={() => openTextModalWithContent(section.enDescription)}>{truncateText(section.enDescription, 50)}</td>
+                  <td className="p-3 border hover:bg-gray-50" onDoubleClick={() => openTextModalWithContent(section.title)}>{truncateText(section.title)}</td>
+                  <td className="p-3 border hover:bg-gray-50" onDoubleClick={() => openTextModalWithContent(section.enTitle)}>{truncateText(section.enTitle)}</td>
+                  <td className="p-3 border hover:bg-gray-50" onDoubleClick={() => openTextModalWithContent(section.description)}>{truncateText(section.description)}</td>
+                  <td className="p-3 border hover:bg-gray-50" onDoubleClick={() => openTextModalWithContent(section.enDescription)}>{truncateText(section.enDescription)}</td>
                   <td className="p-3 border">
                     <span
                       className={
@@ -427,7 +437,7 @@ const BrandYonetimi: React.FC = () => {
                       {section.isActive ? 'Aktif' : 'Pasif'}
                     </span>
                   </td>
-                  <td className="p-3 border">
+                   <td className="p-3 border">
                     {section.image && Array.isArray(section.image) && section.image[0]?.imageData ? (
                       <div
                         className="relative w-16 h-10 mx-auto rounded overflow-hidden group cursor-pointer"
@@ -515,4 +525,4 @@ const BrandYonetimi: React.FC = () => {
   );
 };
 
-export default BrandYonetimi;
+export default BrandActivityMarkaYonetimi;

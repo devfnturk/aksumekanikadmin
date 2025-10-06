@@ -384,14 +384,14 @@ const DataOfAksuYonetimi: React.FC = () => {
                 <tr key={section.id} className="text-center">
                   <td className="p-3 border">{section.count}</td>
                   <td
-                    className="p-3 border text-left max-w-xs truncate cursor-pointer hover:underline"
+                    className="p-3 border  hover:bg-gray-50"
                     onDoubleClick={() => openModalWithContent(section.title)}
                     title={section.title.length > 50 ? section.title : undefined} // Hover tooltip
                   >
                     {truncateText(section.title, 50)}
                   </td>
                   <td
-                    className="p-3 border text-left max-w-xs truncate cursor-pointer hover:underline"
+                    className="p-3 border  hover:bg-gray-50"
                     onDoubleClick={() => openModalWithContent(section.enTitle)}
                     title={section.enTitle.length > 50 ? section.enTitle : undefined} // Hover tooltip
                   >

@@ -16,6 +16,7 @@ import BrandActivityAreasYonetimi from './pages/BrandActivityAreasYonetimi';
 import ProductYonetimi from './pages/ProductYonetimi';
 import 'sweetalert2/dist/sweetalert2.min.css';
 import CatalogYönetimi from './pages/CatalogYönetimi';
+import BrandActivityMarkaYonetimi from './pages/BrandActivityMarkaYonetimi';
 const App: React.FC = () => {
   return (
     <Router>
@@ -33,6 +34,7 @@ const App: React.FC = () => {
         <Route path="/brandYonetimi" element={<BrandYonetimi />} />
         <Route path="/brandActivityAreasYonetimi" element={<BrandActivityAreasYonetimi />} />
         <Route path="/productYonetimi" element={<ProductYonetimi />} />
+        <Route path="/brandActivityMarkaYonetimi" element={<BrandActivityMarkaYonetimi />} />
 
       </Routes>
     </Router>

@@ -8,12 +8,14 @@ const pages = [
   { path: '/referansYonetimi', label: 'Referans Yönetimi' },
   { path: '/projectYonetimi', label: 'Proje Yönetimi' },
   { path: '/catalogYönetimi', label: 'Katalog Yönetimi' },
+  { path: '/brandActivityMarkaYonetimi', label: 'Faaliyet Alanı Yönetimi' },
   { path: '/brandYonetimi', label: 'Marka Yönetimi' },
   { path: '/brandActivityAreasYonetimi', label: 'Marka Etkinlikleri Alanı Yönetimi' },
   { path: '/productYonetimi', label: 'Ürün Yönetimi' },
   { path: '/iletisimYonetimi', label: 'İletişim Yönetimi' },
   { path: '/bizeUlasinYonetimi', label: 'Bize Ulaşın Yönetimi' },
   { path: '/sifreYonetimi', label: 'Şifre Yönetimi' },
+  
 
 
 ];
