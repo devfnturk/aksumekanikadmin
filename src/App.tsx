@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import './App.css';
 import { BrowserRouter as Router, Route, Routes, useNavigate } from 'react-router-dom';
+
+import { LoadingProvider, useLoading } from './contexts/LoadingContext';
+import LoadingLayer from './components/loading/LoadingLayer';
+
 import loginImage from './img/aksuLogo.jpg';
-import HomePage from './pages/HomePage'; 
+import HomePage from './pages/HomePage';
 import SifreYonetimi from './pages/SifreYonetimi';
 import BannerYonetimi from './pages/BannerYonetimi';
 import ReferansYonetimi from './pages/ReferansYonetimi';
@@ -17,27 +21,31 @@ import ProductYonetimi from './pages/ProductYonetimi';
 import 'sweetalert2/dist/sweetalert2.min.css';
 import CatalogYönetimi from './pages/CatalogYönetimi';
 import BrandActivityMarkaYonetimi from './pages/BrandActivityMarkaYonetimi';
+
 const App: React.FC = () => {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<LoginPage />} />
-        <Route path="/home" element={<HomePage />} />
-        <Route path="/sifreYonetimi" element={<SifreYonetimi />} />
-        <Route path="/dataOfAksuYonetimi" element={<DataOfAksuYonetimi />} />
-        <Route path="/bannerYonetimi" element={<BannerYonetimi />} />
-        <Route path="/referansYonetimi" element={<ReferansYonetimi />} />
-        <Route path="/bizeUlasinYonetimi" element={<BizeUlasinYonetimi />} />
-        <Route path="/iletisimYonetimi" element={<IletisimYonetimi />} />
-        <Route path="/catalogYönetimi" element={<CatalogYönetimi />} />
-        <Route path="/projectYonetimi" element={<ProjectYonetimi />} />
-        <Route path="/brandYonetimi" element={<BrandYonetimi />} />
-        <Route path="/brandActivityAreasYonetimi" element={<BrandActivityAreasYonetimi />} />
-        <Route path="/productYonetimi" element={<ProductYonetimi />} />
-        <Route path="/brandActivityMarkaYonetimi" element={<BrandActivityMarkaYonetimi />} />
-
-      </Routes>
-    </Router>
+    <LoadingProvider>
+      <Router>
+        <LoadingLayer />
+        
+        <Routes>
+          <Route path="/" element={<LoginPage />} />
+          <Route path="/home" element={<HomePage />} />
+          <Route path="/sifreYonetimi" element={<SifreYonetimi />} />
+          <Route path="/dataOfAksuYonetimi" element={<DataOfAksuYonetimi />} />
+          <Route path="/bannerYonetimi" element={<BannerYonetimi />} />
+          <Route path="/referansYonetimi" element={<ReferansYonetimi />} />
+          <Route path="/bizeUlasinYonetimi" element={<BizeUlasinYonetimi />} />
+          <Route path="/iletisimYonetimi" element={<IletisimYonetimi />} />
+          <Route path="/catalogYönetimi" element={<CatalogYönetimi />} />
+          <Route path="/projectYonetimi" element={<ProjectYonetimi />} />
+          <Route path="/brandYonetimi" element={<BrandYonetimi />} />
+          <Route path="/brandActivityAreasYonetimi" element={<BrandActivityAreasYonetimi />} />
+          <Route path="/productYonetimi" element={<ProductYonetimi />} />
+          <Route path="/brandActivityMarkaYonetimi" element={<BrandActivityMarkaYonetimi />} />
+        </Routes>
+      </Router>
+    </LoadingProvider>
   );
 };
 
@@ -45,20 +53,23 @@ const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
+  
+  // 3. `useLoading` hook'unu çağırarak loading fonksiyonlarına erişiyoruz.
+  const { showLoading, hideLoading } = useLoading();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-  
+    
+    showLoading(); // API isteği başlamadan hemen önce loading'i göster.
+
     try {
       const response = await api.post('/auth/login', {
         username,
         password
       });
-      console.log("response.data",response.data)
-      // Backend başarılı yanıt döndüyse (örneğin token varsa)
+      
       if (response.status === 200) {
         localStorage.setItem('username', username);
-  
         navigate('/home');
       } else {
         alert('Giriş başarısız');
@@ -70,6 +81,8 @@ const LoginPage: React.FC = () => {
         console.error('Giriş hatası:', error);
         alert('Bir hata oluştu. Daha sonra tekrar deneyin.');
       }
+    } finally {
+      hideLoading(); 
     }
   };
 
@@ -116,6 +129,5 @@ const LoginPage: React.FC = () => {
     </div>
   );
 };
-
 
 export default App;
