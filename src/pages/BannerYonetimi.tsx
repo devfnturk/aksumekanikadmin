@@ -69,10 +69,11 @@ const BannerRow = React.memo(({ section, onToggle, onEdit, onDelete, onOpenTextM
   onEdit: (section: Section) => void;
   onDelete: (id: string) => void;
   onOpenTextModal: (content: string) => void;
-  onOpenImageModal: (imageUrl: string) => void;
+  onOpenImageModal: (imageUrls: string[], startIndex: number) => void;
 }) => {
-  const decodedImageUrl = useMemo(() => {
-    return section.image?.[0]?.imageData ? decodeImage(section.image[0].imageData) : null;
+  const decodedImageUrls = useMemo(() => {
+    // section.image varsa, her bir imageData'yı decode et. Hata durumunda boş stringleri filtrele.
+    return section.image?.map(img => decodeImage(img.imageData)).filter(Boolean) ?? [];
   }, [section.image]);
 
   return (
@@ -90,11 +91,16 @@ const BannerRow = React.memo(({ section, onToggle, onEdit, onDelete, onOpenTextM
         </span>
       </td>
       <td className="p-3 border">
-        {decodedImageUrl ? (
+        {decodedImageUrls.length > 0 ? (
           <div className="relative group inline-block">
-            <img src={decodedImageUrl} alt="banner" className="h-20 w-20 object-cover rounded-md cursor-pointer" onClick={() => onOpenImageModal(decodedImageUrl)} />
-            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => onOpenImageModal(decodedImageUrl)}>
-              Büyüt
+            {/* Sadece ilk resmi thumbnail olarak gösteriyoruz */}
+            <img src={decodedImageUrls[0]} loading="lazy" alt="banner" className="h-20 w-20 object-cover rounded-md cursor-pointer"
+              onClick={() => onOpenImageModal(decodedImageUrls, 0)} />
+
+            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              onClick={() => onOpenImageModal(decodedImageUrls, 0)}>
+              {/* Kullanıcıya kaç resim olduğunu belirtmek daha iyi bir deneyim sunar */}
+              Büyüt ({decodedImageUrls.length})
             </div>
           </div>
         ) : (
@@ -118,7 +124,7 @@ const BannerYonetimi: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [imageBase64, setImageBase64] = useState<string>('');
   const [modalChildren, setModalChildren] = useState<React.ReactNode | null>(null);
-  
+
   const { showLoading, hideLoading } = useLoading();
 
   const fetchSections = useCallback(async () => {
@@ -126,7 +132,7 @@ const BannerYonetimi: React.FC = () => {
     try {
       const res = await api.get('/banners');
       setSections(res.data);
-    } catch (err:any) {
+    } catch (err: any) {
       console.error('Veri çekme hatası', err);
     } finally {
       hideLoading();
@@ -136,71 +142,71 @@ const BannerYonetimi: React.FC = () => {
   useEffect(() => {
     fetchSections();
   }, [fetchSections]);
-  
+
   const formik = useFormik({
     initialValues: {
       title: '', link: '', isActive: true, description: '', tag: '',
       enTitle: '', enDescription: '', enTag: '',
     },
     onSubmit: async (values, { resetForm }) => {
-        const result = await Swal.fire({
-            title: editId ? 'Afiş güncellensin mi?' : 'Yeni afiş eklensin mi?',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Evet',
-            cancelButtonText: 'Hayır',
-            buttonsStyling: false,
+      const result = await Swal.fire({
+        title: editId ? 'Afiş güncellensin mi?' : 'Yeni afiş eklensin mi?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Evet',
+        cancelButtonText: 'Hayır',
+        buttonsStyling: false,
+        customClass: {
+          actions: 'flex justify-center gap-4',
+          confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
+          cancelButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700',
+        },
+      });
+
+      if (result.isConfirmed) {
+        showLoading();
+        try {
+          const formData = new FormData();
+          const requestObject = {
+            title: values.title, link: values.link, isActive: values.isActive,
+            description: values.description, tag: values.tag,
+            enTitle: values.enTitle, enDescription: values.enDescription, enTag: values.enTag,
+          };
+          formData.append('request', new Blob([JSON.stringify(requestObject)], { type: 'application/json' }));
+          if (imageBase64) formData.append('files', dataURLToFile(imageBase64));
+
+          if (editId) {
+            await api.put(`/banners/${editId}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+          } else {
+            await api.post('/banners', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+          }
+          Swal.fire({
+            title: 'Başarılı!', text: editId ? 'Afiş güncellendi.' : 'Afiş eklendi.',
+            icon: 'success', showConfirmButton: true,
             customClass: {
-                actions: 'flex justify-center gap-4',
-                confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
-                cancelButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700',
+              actions: 'flex justify-center gap-4',
+              confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
             },
-        });
-
-        if (result.isConfirmed) {
-            showLoading();
-            try {
-                const formData = new FormData();
-                const requestObject = {
-                    title: values.title, link: values.link, isActive: values.isActive,
-                    description: values.description, tag: values.tag,
-                    enTitle: values.enTitle, enDescription: values.enDescription, enTag: values.enTag,
-                };
-                formData.append('request', new Blob([JSON.stringify(requestObject)], { type: 'application/json' }));
-                if (imageBase64) formData.append('files', dataURLToFile(imageBase64));
-
-                if (editId) {
-                    await api.put(`/banners/${editId}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-                } else {
-                    await api.post('/banners', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-                }
-                Swal.fire({
-                    title: 'Başarılı!', text: editId ? 'Afiş güncellendi.' : 'Afiş eklendi.',
-                    icon: 'success', showConfirmButton: true,
-                    customClass: {
-                        actions: 'flex justify-center gap-4',
-                        confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
-                    },
-                });
-                fetchSections();
-                resetForm();
-                setImageBase64('');
-                setEditId(null);
-                setIsFormOpen(false);
-            } catch (err:any) {
-                console.error(err);
-                Swal.fire({
-                    title: 'Hata!', text: err.response.data.message,
-                    icon: 'error', showConfirmButton: true,
-                    customClass: {
-                        actions: 'flex justify-center gap-4',
-                        confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
-                    },
-                });
-            } finally {
-                hideLoading();
-            }
+          });
+          fetchSections();
+          resetForm();
+          setImageBase64('');
+          setEditId(null);
+          setIsFormOpen(false);
+        } catch (err: any) {
+          console.error(err);
+          Swal.fire({
+            title: 'Hata!', text: err.response.data.message,
+            icon: 'error', showConfirmButton: true,
+            customClass: {
+              actions: 'flex justify-center gap-4',
+              confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
+            },
+          });
+        } finally {
+          hideLoading();
         }
+      }
     },
   });
 
@@ -242,7 +248,7 @@ const BannerYonetimi: React.FC = () => {
           customClass: { actions: 'flex justify-center gap-4', confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700' },
         });
         fetchSections();
-      } catch (err:any) {
+      } catch (err: any) {
         console.error(err);
         Swal.fire({
           title: 'Hata!', text: err.response.data.message, icon: 'error', showConfirmButton: true,
@@ -287,7 +293,7 @@ const BannerYonetimi: React.FC = () => {
           customClass: { actions: 'flex justify-center gap-4', confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700' },
         });
         fetchSections();
-      } catch (err:any) {
+      } catch (err: any) {
         console.error(err);
         Swal.fire({
           title: 'Hata!', text: err.response.data.message, icon: 'error', showConfirmButton: true,
@@ -312,8 +318,14 @@ const BannerYonetimi: React.FC = () => {
     setModalChildren(<TextModalContent title="Detaylı İçerik" content={content} />);
   }, []);
 
-  const openImageModal = useCallback((imageUrl: string) => {
-    setModalChildren(<ImageModalContent title="Görseli Büyüt" imageUrl={imageUrl} />);
+  const openImageModal = useCallback((imageUrls: string[], startIndex: number) => {
+    setModalChildren(
+      <ImageModalContent
+        title="Görseli Büyüt"
+        imageUrls={imageUrls}
+        startIndex={startIndex}
+      />
+    );
   }, []);
 
   const closeModal = useCallback(() => {
@@ -395,7 +407,7 @@ const BannerYonetimi: React.FC = () => {
           </table>
         </div>
       </div>
-      
+
       <Modal isOpen={modalChildren !== null} onClose={closeModal}>
         {modalChildren}
       </Modal>

@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Layout from '../components/Layout';
 import api from '../api';
 import Swal from 'sweetalert2';
+import { useLoading } from '../contexts/LoadingContext';
+import TextModalContent from '../components/TextModalContent';
+import Modal from '../components/Modal';
 
 type Section = {
   id: string;
@@ -11,55 +14,152 @@ type Section = {
   enTitle: string;
 };
 
-const DataOfAksuYonetimi: React.FC = () => {
-  const [sections, setSections] = useState<Section[]>([]);
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [form, setForm] = useState({ count: 0, title: '', enTitle: '', isActive: false });
-  const [editId, setEditId] = useState<string | null>(null);
-  const [modalContent, setModalContent] = useState<string | null>(null); // Modal içeriği için state
+// ⚡ PERFORMANS İYİLEŞTİRMESİ #1: Form komponenti ayrıştırıldı - Parent re-render'dan izole
+const DataForm = React.memo(({
+  editId,
+  onSubmit,
+  initialValues,
+}: {
+  editId: string | null;
+  onSubmit: (values: any) => Promise<void>;
+  initialValues: { count: number; title: string; enTitle: string; isActive: boolean };
+}) => {
+  const [form, setForm] = useState(initialValues);
 
   useEffect(() => {
-    const fetchSections = async () => {
-      try {
-        const response = await api.get('/data');
-        const fetchedSections = response.data.map((section: any) => ({
-          id: section.id,
-          title: section.title,
-          count: section.count,
-          isActive: section.isActive,
-          enTitle: section.enTitle,
-        }));
-        setSections(fetchedSections);
-      } catch (error) {
-        console.error('Error fetching sections:', error);
-        Swal.fire({
-          title: 'Hata!',
-          text: 'Veriler alınırken hata oluştu.',
-          icon: 'error',
-          confirmButtonText: 'Tamam',
-          buttonsStyling: false,
-          customClass: {
-            popup: 'rounded-xl shadow-lg',
-            confirmButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700',
-          },
-        });
-      }
-    };
+    setForm(initialValues);
+  }, [initialValues]);
 
-    fetchSections();
-  }, []);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     if (name === 'isActive') {
-      setForm({ ...form, [name]: value === 'true' });
+      setForm(prev => ({ ...prev, [name]: value === 'true' }));
+    } else if (name === 'count') {
+      setForm(prev => ({ ...prev, [name]: Number(value) }));
     } else {
-      setForm({ ...form, [name]: value });
+      setForm(prev => ({ ...prev, [name]: value }));
     }
-  };
+  }, []);
 
-  const handleSave = async () => {
-    const { count, title, enTitle, isActive } = form;
+  const handleSubmit = useCallback(() => {
+    onSubmit(form);
+  }, [form, onSubmit]);
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white p-4 rounded-xl shadow">
+      <div>
+        <label className="block font-semibold mb-1">Sayı</label>
+        <input
+          type="number"
+          name="count"
+          value={form.count}
+          onChange={handleChange}
+          placeholder="Gösterilecek sıra giriniz"
+          className="w-full border rounded-md p-2"
+          autoComplete="off"
+        />
+      </div>
+      <div>
+        <label className="block font-semibold mb-1">Başlık</label>
+        <input
+          type="text"
+          name="title"
+          value={form.title}
+          onChange={handleChange}
+          placeholder="Başlık giriniz"
+          className="w-full border rounded-md p-2"
+          autoComplete="off"
+        />
+      </div>
+      <div>
+        <label className="block font-semibold mb-1">(En) Başlık</label>
+        <input
+          name="enTitle"
+          value={form.enTitle}
+          onChange={handleChange}
+          placeholder="İngilizce Başlık giriniz"
+          className="w-full border rounded-md p-2"
+          autoComplete="off"
+        />
+      </div>
+      <div>
+        <label className="block font-semibold mb-1">Durum</label>
+        <select
+          name="isActive"
+          value={form.isActive.toString()}
+          onChange={handleChange}
+          className="w-full border rounded-md p-2"
+        >
+          <option value="true">Aktif</option>
+          <option value="false">Pasif</option>
+        </select>
+      </div>
+      <div className="md:col-span-2">
+        <button
+          onClick={handleSubmit}
+          className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition"
+        >
+          {editId ? 'Güncelle' : 'Kaydet'}
+        </button>
+      </div>
+    </div>
+  );
+});
+
+const DataOfAksuYonetimi: React.FC = () => {
+  const { showLoading, hideLoading } = useLoading();
+  const [sections, setSections] = useState<Section[]>([]);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [modalChildren, setModalChildren] = useState<React.ReactNode | null>(null);
+
+  // ⚡ Form initial values'u memoize et
+  const [formInitialValues, setFormInitialValues] = useState({
+    count: 0,
+    title: '',
+    enTitle: '',
+    isActive: true,
+  });
+
+  // DÜZELTME: fetchSections fonksiyonu useCallback ile sarmalandı.
+  const fetchSections = useCallback(async () => {
+    showLoading();
+    try {
+      const response = await api.get('/data');
+      const fetchedSections = response.data.map((section: any) => ({
+        id: section.id,
+        title: section.title,
+        count: section.count,
+        isActive: section.isActive,
+        enTitle: section.enTitle,
+      }));
+      setSections(fetchedSections);
+    } catch (error) {
+      console.error('Error fetching sections:', error);
+      Swal.fire({
+        title: 'Hata!',
+        text: 'Veriler alınırken hata oluştu.',
+        icon: 'error',
+        confirmButtonText: 'Tamam',
+        buttonsStyling: false,
+        customClass: {
+          popup: 'rounded-xl shadow-lg',
+          confirmButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700',
+        },
+      });
+    } finally {
+      hideLoading();
+    }
+  }, [showLoading, hideLoading]); // useCallback bağımlılıkları eklendi.
+
+  // DÜZELTME: fetchSections, useEffect bağımlılık dizisine eklendi.
+  useEffect(() => {
+    fetchSections();
+  }, [fetchSections]);
+
+  // ⚡ Form submit handler'ı useCallback ile sar
+  const handleFormSubmit = useCallback(async (values: any) => {
+    const { count, title, enTitle, isActive } = values;
 
     if (!count || !title || !enTitle) {
       Swal.fire({
@@ -76,7 +176,7 @@ const DataOfAksuYonetimi: React.FC = () => {
       return;
     }
 
-    Swal.fire({
+    const result = await Swal.fire({
       title: editId ? 'Güncellemek istediğinize emin misiniz?' : 'Kaydetmek istediğinize emin misiniz?',
       icon: 'question',
       showCancelButton: true,
@@ -88,76 +188,77 @@ const DataOfAksuYonetimi: React.FC = () => {
         confirmButton: 'bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 mr-2',
         cancelButton: 'bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400',
       },
-    }).then(async (result) => {
-      if (!result.isConfirmed) return;
+    });
 
-      const sectionData = {
-        title,
-        count: Number(count),
-        enTitle,
-        isActive,
-      };
+    if (!result.isConfirmed) return;
 
-      try {
-        if (editId !== null) {
-          const updatedSection = { id: editId, ...sectionData };
-          await api.post(`/data`, updatedSection); // API'niz PUT yerine POST kullanıyorsa, buna dikkat edin.
-                                                   // Genellikle güncellemeler için PUT veya PATCH kullanılır.
+    showLoading();
 
-          setSections((prev) =>
-            prev.map((section) =>
-              section.id === editId ? updatedSection : section
-            )
-          );
+    const sectionData = {
+      title,
+      count: Number(count),
+      enTitle,
+      isActive,
+    };
 
-          Swal.fire({
-            title: 'Başarılı!',
-            text: 'İçerik başarıyla güncellendi.',
-            icon: 'success',
-            timer: 2000,
-            showConfirmButton: false,
-            customClass: { popup: 'rounded-xl shadow-lg' },
-          });
+    try {
+      if (editId !== null) {
+        const updatedSection = { id: editId, ...sectionData };
+        await api.post(`/data`, updatedSection);
 
-          setEditId(null);
-        } else {
-          // Yeni içerik ekleme
-          const newSectionTemp = { id: Date.now().toString(), ...sectionData }; // Geçici ID
-          const response = await api.post('/data', newSectionTemp);
-          setSections((prev) => [...prev, { ...newSectionTemp, id: response.data.id || newSectionTemp.id }]);
-          // API'niz yeni oluşturulan öğenin ID'sini döndürmüyorsa, geçici ID'yi kullanmaya devam ederiz.
+        setSections((prev) =>
+          prev.map((section) =>
+            section.id === editId ? updatedSection : section
+          )
+        );
 
-          Swal.fire({
-            title: 'Başarılı!',
-            text: 'Yeni içerik başarıyla eklendi.',
-            icon: 'success',
-            timer: 2000,
-            showConfirmButton: false,
-            customClass: { popup: 'rounded-xl shadow-lg' },
-          });
-        }
-
-        setForm({ count: 0, title: '', enTitle: '', isActive: false });
-        setIsFormOpen(false);
-      } catch (error) {
-        console.error('Error saving section:', error);
         Swal.fire({
-          title: 'Hata!',
-          text: 'İşlem sırasında bir hata oluştu.',
-          icon: 'error',
-          confirmButtonText: 'Tamam',
-          buttonsStyling: false,
-          customClass: {
-            popup: 'rounded-xl shadow-lg',
-            confirmButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700',
-          },
+          title: 'Başarılı!',
+          text: 'İçerik başarıyla güncellendi.',
+          icon: 'success',
+          timer: 2000,
+          showConfirmButton: false,
+          customClass: { popup: 'rounded-xl shadow-lg' },
+        });
+
+        setEditId(null);
+      } else {
+        const newSectionTemp = { id: Date.now().toString(), ...sectionData };
+        const response = await api.post('/data', newSectionTemp);
+        setSections((prev) => [...prev, { ...newSectionTemp, id: response.data.id || newSectionTemp.id }]);
+
+        Swal.fire({
+          title: 'Başarılı!',
+          text: 'Yeni içerik başarıyla eklendi.',
+          icon: 'success',
+          timer: 2000,
+          showConfirmButton: false,
+          customClass: { popup: 'rounded-xl shadow-lg' },
         });
       }
-    });
-  };
 
-  const handleEdit = (section: Section) => {
-    setForm({
+      setFormInitialValues({ count: 0, title: '', enTitle: '', isActive: false });
+      setIsFormOpen(false);
+    } catch (error) {
+      console.error('Error saving section:', error);
+      Swal.fire({
+        title: 'Hata!',
+        text: 'İşlem sırasında bir hata oluştu.',
+        icon: 'error',
+        confirmButtonText: 'Tamam',
+        buttonsStyling: false,
+        customClass: {
+          popup: 'rounded-xl shadow-lg',
+          confirmButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700',
+        },
+      });
+    } finally {
+      hideLoading();
+    }
+  }, [editId, showLoading, hideLoading]);
+
+  const handleEdit = useCallback((section: Section) => {
+    setFormInitialValues({
       count: section.count,
       title: section.title,
       enTitle: section.enTitle,
@@ -165,10 +266,10 @@ const DataOfAksuYonetimi: React.FC = () => {
     });
     setEditId(section.id);
     setIsFormOpen(true);
-  };
+  }, []);
 
-  const handleDelete = async (id: string) => {
-    Swal.fire({
+  const handleDelete = useCallback(async (id: string) => {
+    const result = await Swal.fire({
       title: 'Emin misiniz?',
       text: 'Bu içeriği silmek üzeresiniz!',
       icon: 'warning',
@@ -181,42 +282,45 @@ const DataOfAksuYonetimi: React.FC = () => {
         confirmButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 mr-2',
         cancelButton: 'bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400',
       },
-    }).then(async (result) => {
-      if (result.isConfirmed) {
-        try {
-          await api.delete(`/data/${id}`);
-          setSections((prev) => prev.filter((section) => section.id !== id));
-          Swal.fire({
-            title: 'Silindi!',
-            text: 'İçerik başarıyla silindi.',
-            icon: 'success',
-            timer: 2000,
-            showConfirmButton: false,
-            customClass: { popup: 'rounded-xl shadow-lg' },
-          });
-        } catch (error) {
-          console.error('Error deleting section:', error);
-          Swal.fire({
-            title: 'Hata!',
-            text: 'Silme işlemi başarısız oldu.',
-            icon: 'error',
-            confirmButtonText: 'Tamam',
-            buttonsStyling: false,
-            customClass: {
-              popup: 'rounded-xl shadow-lg',
-              confirmButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700',
-            },
-          });
-        }
-      }
     });
-  };
 
-  const handleToggleActive = async (sectionId: string) => {
+    if (!result.isConfirmed) return;
+
+    showLoading();
+    try {
+      await api.delete(`/data/${id}`);
+      setSections((prev) => prev.filter((section) => section.id !== id));
+      Swal.fire({
+        title: 'Silindi!',
+        text: 'İçerik başarıyla silindi.',
+        icon: 'success',
+        timer: 2000,
+        showConfirmButton: false,
+        customClass: { popup: 'rounded-xl shadow-lg' },
+      });
+    } catch (error) {
+      console.error('Error deleting section:', error);
+      Swal.fire({
+        title: 'Hata!',
+        text: 'Silme işlemi başarısız oldu.',
+        icon: 'error',
+        confirmButtonText: 'Tamam',
+        buttonsStyling: false,
+        customClass: {
+          popup: 'rounded-xl shadow-lg',
+          confirmButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700',
+        },
+      });
+    } finally {
+      hideLoading();
+    }
+  }, [showLoading, hideLoading]);
+
+  const handleToggleActive = useCallback(async (sectionId: string) => {
     const sectionToUpdate = sections.find((section) => section.id === sectionId);
     if (!sectionToUpdate) return;
 
-    Swal.fire({
+    const result = await Swal.fire({
       title: sectionToUpdate.isActive
         ? 'İçeriği pasif etmek istediğinize emin misiniz?'
         : 'İçeriği aktif etmek istediğinize emin misiniz?',
@@ -230,65 +334,115 @@ const DataOfAksuYonetimi: React.FC = () => {
         confirmButton: 'bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 mr-2',
         cancelButton: 'bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400',
       },
-    }).then(async (result) => {
-      if (!result.isConfirmed) return;
-
-      const updatedSection = {
-        ...sectionToUpdate,
-        isActive: !sectionToUpdate.isActive,
-      };
-
-      try {
-        await api.put(`/data/${sectionId}`, updatedSection);
-        setSections((prev) =>
-          prev.map((section) =>
-            section.id === sectionId ? updatedSection : section
-          )
-        );
-
-        Swal.fire({
-          title: 'Başarılı!',
-          text: `İçerik ${updatedSection.isActive ? 'aktif' : 'pasif'} edildi.`,
-          icon: 'success',
-          timer: 1500,
-          showConfirmButton: false,
-          customClass: { popup: 'rounded-xl shadow-lg' },
-        });
-      } catch (error) {
-        console.error("Aktiflik güncellenirken hata:", error);
-        Swal.fire({
-          title: 'Hata!',
-          text: 'Durum güncellenemedi.',
-          icon: 'error',
-          confirmButtonText: 'Tamam',
-          buttonsStyling: false,
-          customClass: {
-            popup: 'rounded-xl shadow-lg',
-            confirmButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700',
-          },
-        });
-      }
     });
-  };
 
-  // Metni kısaltma fonksiyonu
-  const truncateText = (text: string, maxLength: number) => {
+    if (!result.isConfirmed) return;
+
+    showLoading();
+
+    const updatedSection = {
+      ...sectionToUpdate,
+      isActive: !sectionToUpdate.isActive,
+    };
+
+    try {
+      await api.put(`/data/${sectionId}`, updatedSection);
+      setSections((prev) =>
+        prev.map((section) =>
+          section.id === sectionId ? updatedSection : section
+        )
+      );
+
+      Swal.fire({
+        title: 'Başarılı!',
+        text: `İçerik ${updatedSection.isActive ? 'aktif' : 'pasif'} edildi.`,
+        icon: 'success',
+        timer: 1500,
+        showConfirmButton: false,
+        customClass: { popup: 'rounded-xl shadow-lg' },
+      });
+    } catch (error) {
+      console.error("Aktiflik güncellenirken hata:", error);
+      Swal.fire({
+        title: 'Hata!',
+        text: 'Durum güncellenemedi.',
+        icon: 'error',
+        confirmButtonText: 'Tamam',
+        buttonsStyling: false,
+        customClass: {
+          popup: 'rounded-xl shadow-lg',
+          confirmButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700',
+        },
+      });
+    } finally {
+      hideLoading();
+    }
+  }, [sections, showLoading, hideLoading]);
+
+  const truncateText = useCallback((text: string, maxLength: number) => {
     if (text.length > maxLength) {
       return text.substring(0, maxLength) + '...';
     }
     return text;
-  };
+  }, []);
 
-  // Modal açma fonksiyonu
-  const openModalWithContent = (content: string) => {
-    setModalContent(content);
-  };
 
-  // Modal kapatma fonksiyonu
-  const closeModal = () => {
-    setModalContent(null);
-  };
+  const openTextModal = useCallback((content: string) => {
+    setModalChildren(<TextModalContent title="Detaylı İçerik" content={content} />);
+  }, []);
 
+
+  const closeModal = useCallback(() => {
+    setModalChildren(null);
+  }, []);
+
+  // ⚡ PERFORMANS İYİLEŞTİRMESİ: Row Component - Her satır memoize edildi
+  const TableRowComponent = React.memo(({ section }: { section: Section }) => {
+    return (
+      <tr className="text-center">
+        <td className="p-3 border">{section.count}</td>
+        <td
+          className="p-3 border hover:bg-gray-50 cursor-pointer"
+          onDoubleClick={() => openTextModal(section.title)}
+          title={section.title.length > 50 ? section.title : undefined}
+        >
+          {truncateText(section.title, 50)}
+        </td>
+        <td
+          className="p-3 border hover:bg-gray-50 cursor-pointer"
+          onDoubleClick={() => openTextModal(section.enTitle)}
+          title={section.enTitle.length > 50 ? section.enTitle : undefined}
+        >
+          {truncateText(section.enTitle, 50)}
+        </td>
+        <td className="p-3 border">
+          <span className={section.isActive ? 'text-green-600 font-semibold' : 'text-red-500'}>
+            {section.isActive ? 'Aktif' : 'Pasif'}
+          </span>
+        </td>
+        <td className="p-3 border space-x-2">
+          <button
+            onClick={() => handleToggleActive(section.id)}
+            className={`${section.isActive ? 'bg-red-500' : 'bg-green-600'} text-white px-3 py-1 rounded hover:bg-opacity-80`}
+          >
+            {section.isActive ? 'Pasifleştir' : 'Aktifleştir'}
+          </button>
+          <button
+            onClick={() => handleEdit(section)}
+            className="bg-yellow-400 px-3 py-1 rounded hover:bg-yellow-500"
+          >
+            Düzenle
+          </button>
+          <button
+            onClick={() => handleDelete(section.id)}
+            className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+          >
+            Sil
+          </button>
+        </td>
+      </tr>
+    );
+  });
 
   return (
     <Layout>
@@ -299,8 +453,8 @@ const DataOfAksuYonetimi: React.FC = () => {
           <button
             onClick={() => {
               setIsFormOpen(!isFormOpen);
-              if (isFormOpen) { // Form kapatılırken formu sıfırla
-                setForm({ count: 0, title: '', enTitle: '', isActive: false });
+              if (isFormOpen) {
+                setFormInitialValues({ count: 0, title: '', enTitle: '', isActive: false });
                 setEditId(null);
               }
             }}
@@ -311,61 +465,11 @@ const DataOfAksuYonetimi: React.FC = () => {
         </div>
 
         {isFormOpen && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white p-4 rounded-xl shadow">
-            <div>
-              <label className="block font-semibold mb-1">Sayı</label>
-              <input
-                type="number" // Sayısal giriş için type="number" daha uygun
-                name="count"
-                value={form.count}
-                onChange={handleChange}
-                placeholder="Gösterilecek sıra giriniz"
-                className="w-full border rounded-md p-2"
-              />
-            </div>
-            <div>
-              <label className="block font-semibold mb-1">Başlık</label>
-              <input
-                type="text"
-                name="title"
-                value={form.title}
-                onChange={handleChange}
-                placeholder="Başlık giriniz"
-                className="w-full border rounded-md p-2"
-              />
-            </div>
-
-            <div>
-              <label className="block font-semibold mb-1">(En) Başlık</label>
-              <input
-                name="enTitle"
-                value={form.enTitle}
-                onChange={handleChange}
-                placeholder="İngilizce Başlık giriniz"
-                className="w-full border rounded-md p-2"
-              />
-            </div>
-            <div>
-              <label className="block font-semibold mb-1">Durum</label>
-              <select
-                name="isActive"
-                value={form.isActive.toString()}
-                onChange={handleChange}
-                className="w-full border rounded-md p-2"
-              >
-                <option value="true">Aktif</option>
-                <option value="false">Pasif</option>
-              </select>
-            </div>
-            <div className="md:col-span-2">
-              <button
-                onClick={handleSave}
-                className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition"
-              >
-                {editId ? 'Güncelle' : 'Kaydet'}
-              </button>
-            </div>
-          </div>
+          <DataForm
+            editId={editId}
+            onSubmit={handleFormSubmit}
+            initialValues={formInitialValues}
+          />
         )}
 
         <div className="overflow-x-auto bg-white rounded-xl shadow">
@@ -381,49 +485,7 @@ const DataOfAksuYonetimi: React.FC = () => {
             </thead>
             <tbody>
               {sections.map((section) => (
-                <tr key={section.id} className="text-center">
-                  <td className="p-3 border">{section.count}</td>
-                  <td
-                    className="p-3 border  hover:bg-gray-50"
-                    onDoubleClick={() => openModalWithContent(section.title)}
-                    title={section.title.length > 50 ? section.title : undefined} // Hover tooltip
-                  >
-                    {truncateText(section.title, 50)}
-                  </td>
-                  <td
-                    className="p-3 border  hover:bg-gray-50"
-                    onDoubleClick={() => openModalWithContent(section.enTitle)}
-                    title={section.enTitle.length > 50 ? section.enTitle : undefined} // Hover tooltip
-                  >
-                    {truncateText(section.enTitle, 50)}
-                  </td>
-                  <td className="p-3 border">
-                    <span className={section.isActive ? 'text-green-600 font-semibold' : 'text-red-500'}>
-                      {section.isActive ? 'Aktif' : 'Pasif'}
-                    </span></td>
-                  <td className="p-3 border space-x-2">
-                    <button
-                      onClick={() => handleToggleActive(section.id)}
-                      className={`${section.isActive ? 'bg-red-500' : 'bg-green-600'
-                        } text-white px-3 py-1 rounded hover:bg-opacity-80`}
-                    >
-                      {section.isActive ? 'Pasifleştir' : 'Aktifleştir'}
-                    </button>
-                    <button
-                      onClick={() => handleEdit(section)}
-                      className="bg-yellow-400 px-3 py-1 rounded hover:bg-yellow-500"
-                    >
-                      Düzenle
-                    </button>
-                    <button
-                      onClick={() => handleDelete(section.id)}
-                      className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
-                    >
-                      Sil
-                    </button>
-
-                  </td>
-                </tr>
+                <TableRowComponent key={section.id} section={section} />
               ))}
               {sections.length === 0 && (
                 <tr>
@@ -437,23 +499,9 @@ const DataOfAksuYonetimi: React.FC = () => {
         </div>
       </div>
 
-      {/* Modal bileşeni */}
-      {modalContent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full">
-            <h3 className="text-xl font-bold mb-4">Tam İçerik</h3>
-            <p className="text-gray-800 whitespace-pre-wrap">{modalContent}</p>
-            <div className="mt-6 text-right">
-              <button
-                onClick={closeModal}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-              >
-                Kapat
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal isOpen={modalChildren !== null} onClose={closeModal}>
+        {modalChildren}
+      </Modal>
     </Layout>
   );
 };
