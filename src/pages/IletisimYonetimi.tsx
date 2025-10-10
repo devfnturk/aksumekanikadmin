@@ -1,81 +1,148 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import Layout from '../components/Layout';
 import api from '../api';
 import Swal from 'sweetalert2';
+import { useLoading } from '../contexts/LoadingContext';
+
+// --- Tipler ve Başlangıç Verisi ---
+
+// Tüm iletişim verilerini tek bir tipte topluyoruz.
+type IletisimVerisi = {
+    address: string;
+    email1: string;
+    email2: string;
+    officePhone: string;
+    phoneNumber1: string;
+    phoneNumber2: string;
+    faxNumber: string;
+};
+
+// Başlangıçta state'in boş olmasını sağlıyoruz.
+const initialData: IletisimVerisi = {
+    address: '',
+    email1: '',
+    email2: '',
+    officePhone: '',
+    phoneNumber1: '',
+    phoneNumber2: '',
+    faxNumber: '',
+};
+
+// --- Alt Bileşenler (Performans için ayrıştırıldı) ---
+
+// 1. Veri Gösterim Bileşeni
+interface IletisimGorunumuProps {
+    data: IletisimVerisi;
+}
+
+const IletisimGorunumu: React.FC<IletisimGorunumuProps> = memo(({ data }) => {
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 text-gray-800">
+            <p><span className="font-semibold">E-Posta 1:</span> {data.email1 || "—"}</p>
+            <p><span className="font-semibold">E-Posta 2:</span> {data.email2 || "—"}</p>
+            <p><span className="font-semibold">GSM 1:</span> {data.phoneNumber1 || "—"}</p>
+            <p><span className="font-semibold">GSM 2:</span> {data.phoneNumber2 || "—"}</p>
+            <p><span className="font-semibold">Ofis Telefonu:</span> {data.officePhone || "—"}</p>
+            <p><span className="font-semibold">Fax:</span> {data.faxNumber || "—"}</p>
+            <p className="md:col-span-2"><span className="font-semibold">Adres:</span> {data.address || "—"}</p>
+        </div>
+    );
+});
+IletisimGorunumu.displayName = "IletisimGorunumu";
+
+// 2. Veri Düzenleme Formu Bileşeni
+interface IletisimFormProps {
+    data: IletisimVerisi;
+    onDataChange: (field: keyof IletisimVerisi, value: string) => void;
+    onSubmit: (e: React.FormEvent) => void;
+}
+
+const IletisimForm: React.FC<IletisimFormProps> = memo(({ data, onDataChange, onSubmit }) => {
+    return (
+        <form onSubmit={onSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Inputlar tek bir handler'ı çağıracak şekilde düzenlendi */}
+            <div>
+                <label className="block text-gray-700 font-medium mb-1">E-Posta 1</label>
+                <input type="email" value={data.email1} onChange={(e) => onDataChange('email1', e.target.value)} className="w-full p-3 border rounded-md" />
+            </div>
+            <div>
+                <label className="block text-gray-700 font-medium mb-1">E-Posta 2</label>
+                <input type="email" value={data.email2} onChange={(e) => onDataChange('email2', e.target.value)} className="w-full p-3 border rounded-md" />
+            </div>
+            <div>
+                <label className="block text-gray-700 font-medium mb-1">GSM 1</label>
+                <input value={data.phoneNumber1} onChange={(e) => onDataChange('phoneNumber1', e.target.value)} className="w-full p-3 border rounded-md" />
+            </div>
+            <div>
+                <label className="block text-gray-700 font-medium mb-1">GSM 2</label>
+                <input value={data.phoneNumber2} onChange={(e) => onDataChange('phoneNumber2', e.target.value)} className="w-full p-3 border rounded-md" />
+            </div>
+            <div>
+                <label className="block text-gray-700 font-medium mb-1">Ofis Telefonu</label>
+                <input value={data.officePhone} onChange={(e) => onDataChange('officePhone', e.target.value)} className="w-full p-3 border rounded-md" />
+            </div>
+            <div>
+                <label className="block text-gray-700 font-medium mb-1">Fax</label>
+                <input value={data.faxNumber} onChange={(e) => onDataChange('faxNumber', e.target.value)} className="w-full p-3 border rounded-md" />
+            </div>
+            <div className="md:col-span-2">
+                <label className="block text-gray-700 font-medium mb-1">Adres</label>
+                <textarea value={data.address} onChange={(e) => onDataChange('address', e.target.value)} className="w-full p-3 border rounded-md" />
+            </div>
+            <div className="md:col-span-2">
+                <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-md hover:bg-blue-700 transition-all">Kaydet</button>
+            </div>
+        </form>
+    );
+});
+IletisimForm.displayName = "IletisimForm";
+
+
+// --- Ana Bileşen ---
+
 const IletisimYonetimi: React.FC = () => {
-    const [adress, setAdress] = useState('');
-    const [eposta1, setEposta1] = useState('');
-    const [eposta2, setEposta2] = useState('');
-    const [ofisTelefon, setOfisTelefon] = useState('');
-    const [gsm1, setGsm1] = useState('');
-    const [gsm2, setGsm2] = useState('');
-    const [fax, setFax] = useState('');
+    // 7 ayrı state yerine tek bir state nesnesi kullanıyoruz
+    const [iletisimData, setIletisimData] = useState<IletisimVerisi>(initialData);
     const [editMode, setEditMode] = useState(false);
-    const [id, setId] = useState<string | null>(null); // Store the id of the communication entry
+    const [id, setId] = useState<string | null>(null);
+    const { showLoading, hideLoading } = useLoading();
+
+    const fetchData = useCallback(async () => {
+        showLoading();
+        try {
+            const response = await api.get('/communications');
+            if (response.data && response.data.length > 0) {
+                const data = response.data[0];
+                setId(data.id);
+                // Tek bir set state çağrısı ile tüm veriyi güncelliyoruz
+                setIletisimData({
+                    email1: data.email1 || '',
+                    email2: data.email2 || '',
+                    phoneNumber1: data.phoneNumber1 || '',
+                    phoneNumber2: data.phoneNumber2 || '',
+                    officePhone: data.officePhone || '',
+                    faxNumber: data.faxNumber || '',
+                    address: data.address || '',
+                });
+            }
+        } catch (error) {
+            console.error('Error fetching data:', error);
+        } finally {
+            hideLoading();
+        }
+    }, [showLoading, hideLoading]);
 
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const response = await api.get('/communications');
-                const data = response.data[0]; // Assuming the data array contains a single item
-
-                if (data) {
-                    setId(data.id); // Set the id from the backend response
-                    setEposta1(data.email1 || '');
-                    setEposta2(data.email2 || '');
-                    setGsm1(data.phoneNumber1 || '');
-                    setGsm2(data.phoneNumber2 || '');
-                    setOfisTelefon(data.officePhone || '');
-                    setFax(data.faxNumber || '');
-                    setAdress(data.address || '');
-                }
-            } catch (error) {
-                console.error('Error fetching data:', error);
-            }
-        };
-
         fetchData();
-    }, []);
+    }, [fetchData]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
-
-        const updatedData = {
-            address: adress,
-            email1: eposta1,
-            email2: eposta2,
-            officePhone: ofisTelefon,
-            phoneNumber1: gsm1,
-            phoneNumber2: gsm2,
-            faxNumber: fax,
-        };
-
+        showLoading();
         try {
-            let response;
-
-            if (editMode && id) {
-                response = await api.put(
-                    `/communications/${id}`,
-                    updatedData,
-                    {
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'accept': '*/*',
-                        },
-                    }
-                );
-            } else {
-                response = await api.post(
-                    '/communications',
-                    updatedData,
-                    {
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'accept': '*/*',
-                        },
-                    }
-                );
-            }
+            const response = editMode && id
+                ? await api.put(`/communications/${id}`, iletisimData)
+                : await api.post('/communications', iletisimData);
 
             if (response.status === 200 || response.status === 201) {
                 Swal.fire({
@@ -84,13 +151,12 @@ const IletisimYonetimi: React.FC = () => {
                     icon: 'success',
                     timer: 2000,
                     showConfirmButton: false,
-                    customClass: {
-                        popup: 'rounded-xl shadow-lg',
-                        title: 'text-lg font-bold',
-                        htmlContainer: 'text-gray-700',
-                    },
                 });
                 setEditMode(false);
+                // Eğer yeni bir kayıt oluşturulduysa, ID'yi state'e alıyoruz
+                if(response.data.id && !id) {
+                    setId(response.data.id);
+                }
             }
         } catch (error) {
             console.error('Error submitting data:', error);
@@ -99,128 +165,41 @@ const IletisimYonetimi: React.FC = () => {
                 text: 'Bilgiler kaydedilirken bir hata oluştu.',
                 icon: 'error',
                 confirmButtonText: 'Tamam',
-                buttonsStyling: false,
-                customClass: {
-                    popup: 'rounded-xl shadow-lg',
-                    confirmButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700',
-                },
             });
+        } finally {
+            hideLoading();
         }
-    };
+    }, [editMode, id, iletisimData, showLoading, hideLoading]);
 
+    // Formdaki her değişiklik için tek bir handler fonksiyonu
+    const handleDataChange = useCallback((field: keyof IletisimVerisi, value: string) => {
+        setIletisimData(prevData => ({
+            ...prevData,
+            [field]: value,
+        }));
+    }, []);
 
     return (
         <Layout>
             <div className="p-6 max-w-4xl mx-auto">
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold text-gray-800">İletişim Yönetimi</h2>
-                    {!editMode ? (
-                        <button
-                            onClick={() => setEditMode(true)}
-                            className="bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition-all"
-                        >
-                            Düzenle
-                        </button>
-                    ) : (
-                        <button
-                            onClick={() => setEditMode(false)}
-                            className="bg-gray-500 text-white py-2 px-4 rounded-md hover:bg-gray-600 transition-all"
-                        >
-                            İptal Et
-                        </button>
-                    )}
+                    <button
+                        onClick={() => setEditMode(prev => !prev)}
+                        className={`${editMode ? 'bg-gray-500 hover:bg-gray-600' : 'bg-blue-500 hover:bg-blue-600'} text-white py-2 px-4 rounded-md transition-all`}
+                    >
+                        {editMode ? 'İptal Et' : 'Düzenle'}
+                    </button>
                 </div>
 
                 {editMode ? (
-                    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label className="block text-gray-700 font-medium mb-1">E-Posta 1</label>
-                            <input
-                                type="email"
-                                value={eposta1}
-                                onChange={(e) => setEposta1(e.target.value)}
-                                className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="E Posta1 giriniz"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-gray-700 font-medium mb-1">E-Posta 2</label>
-                            <input
-                                type="email"
-                                value={eposta2}
-                                onChange={(e) => setEposta2(e.target.value)}
-                                className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="E Posta2 giriniz"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-gray-700 font-medium mb-1">GSM 1</label>
-                            <input
-                                value={gsm1}
-                                onChange={(e) => setGsm1(e.target.value)}
-                                className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="Gsm1 giriniz"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-gray-700 font-medium mb-1">GSM 2</label>
-                            <input
-                                value={gsm2}
-                                onChange={(e) => setGsm2(e.target.value)}
-                                className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="Gsm2 giriniz"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-gray-700 font-medium mb-1">Ofis Telefonu</label>
-                            <input
-                                value={ofisTelefon}
-                                onChange={(e) => setOfisTelefon(e.target.value)}
-                                className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="Ofis Telefonu giriniz"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-gray-700 font-medium mb-1">Fax</label>
-                            <input
-                                value={fax}
-                                onChange={(e) => setFax(e.target.value)}
-                                className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="Fax giriniz"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-gray-700 font-medium mb-1">Adres</label>
-                            <textarea
-                                value={adress}
-                                onChange={(e) => setAdress(e.target.value)}
-                                className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="Adres giriniz"
-                            />
-                        </div>
-
-                        <div className="md:col-span-2">
-                            <button
-                                type="submit"
-                                className="w-full bg-blue-600 text-white py-3 rounded-md hover:bg-blue-700 transition-all"
-                            >
-                                Kaydet
-                            </button>
-                        </div>
-                    </form>
+                    <IletisimForm
+                        data={iletisimData}
+                        onDataChange={handleDataChange}
+                        onSubmit={handleSubmit}
+                    />
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 text-gray-800">
-                        <p><span className="font-semibold">E-Posta 1:</span> {eposta1 || "E Posta1 bulunmuyor."}</p>
-                        <p><span className="font-semibold">E-Posta 2:</span> {eposta2 || "E Posta2 bulunmuyor."}</p>
-                        <p><span className="font-semibold">GSM 1:</span> {gsm1 || "Gsm1 bulunmuyor."}</p>
-                        <p><span className="font-semibold">GSM 2:</span> {gsm2 || "Gsm2 bulunmuyor."}</p>
-                        <p><span className="font-semibold">Ofis Telefonu:</span> {ofisTelefon || "Ofis Telefonu bulunmuyor."}</p>
-                        <p><span className="font-semibold">Fax:</span> {fax || "Fax bulunmuyor."}</p>
-                        <p><span className="font-semibold">Adres:</span> {adress || "Adres bulunmuyor"}</p>
-                    </div>
+                    <IletisimGorunumu data={iletisimData} />
                 )}
             </div>
         </Layout>

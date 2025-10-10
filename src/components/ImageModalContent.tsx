@@ -1,41 +1,25 @@
+// ImageModalContent.tsx
+
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 import React from 'react';
 import Slider from 'react-slick';
-// --- Özel Ok Bileşenleri (SVG ile) ---
 
+// --- Özel Ok Bileşenleri (Değişiklik Yok) ---
 interface ArrowProps {
   className?: string;
   onClick?: React.MouseEventHandler<HTMLDivElement>;
 }
 
-const NextArrow = ({ className, onClick }: ArrowProps) => {
-  return (
-    <div
-      className={`${className} custom-arrow next-arrow`}
-      onClick={onClick}
-    >
-      {/* react-icons yerine SVG kullandık */}
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M9.293 7.707a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L13.586 13 9.293 8.707a1 1 0 010-1.414z" />
-      </svg>
-    </div>
-  );
-};
+const NextArrow = ({ className, onClick }: ArrowProps) => (
+  <div className={`${className} custom-arrow next-arrow`} onClick={onClick}>
+  </div>
+);
 
-const PrevArrow = ({ className, onClick }: ArrowProps) => {
-  return (
-    <div
-      className={`${className} custom-arrow prev-arrow`}
-      onClick={onClick}
-    >
-      {/* react-icons yerine SVG kullandık */}
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M14.707 16.293a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 111.414 1.414L10.414 12l4.293 4.293a1 1 0 010 1.414z" />
-      </svg>
-    </div>
-  );
-};
+const PrevArrow = ({ className, onClick }: ArrowProps) => (
+  <div className={`${className} custom-arrow prev-arrow`} onClick={onClick}>
+  </div>
+);
 
 
 type ImageModalContentProps = {
@@ -56,11 +40,6 @@ const ImageModalContent: React.FC<ImageModalContentProps> = ({ title, imageUrls,
     initialSlide: startIndex,
     nextArrow: <NextArrow />,
     prevArrow: <PrevArrow />,
-    appendDots: (dots: React.ReactNode) => (
-      <div style={{ position: 'absolute', bottom: '-40px' }}>
-        <ul style={{ margin: '0px' }}> {dots} </ul>
-      </div>
-    ),
   };
 
   if (!imageUrls || imageUrls.length === 0) {
@@ -68,7 +47,9 @@ const ImageModalContent: React.FC<ImageModalContentProps> = ({ title, imageUrls,
   }
 
   return (
-    <div className="relative p-4 md:px-16">
+    // Ana kapsayıcıyı kaldırdık, çünkü Modal.tsx'de zaten var.
+    // Sadece gerekli stilleri ve slider'ı bırakıyoruz.
+    <div>
       <style>{`
         .custom-arrow {
           position: absolute;
@@ -76,7 +57,7 @@ const ImageModalContent: React.FC<ImageModalContentProps> = ({ title, imageUrls,
           transform: translateY(-50%);
           z-index: 10;
           cursor: pointer;
-          background-color: rgba(255, 255, 255, 0.7);
+          background-color: rgba(0, 0, 0, 0.4);
           border-radius: 50%;
           width: 40px;
           height: 40px;
@@ -87,25 +68,21 @@ const ImageModalContent: React.FC<ImageModalContentProps> = ({ title, imageUrls,
           transition: all 0.2s ease-in-out;
         }
         .custom-arrow:hover {
-          background-color: rgba(255, 255, 255, 1);
+          background-color: rgba(0, 0, 0, 0.7);
           transform: translateY(-50%) scale(1.1);
         }
         .custom-arrow svg {
-          /* SVG'nin rengini ve boyutunu ayarlıyoruz */
-          color: #333;
+          color: #fff; /* Ok rengini beyaz yaptık */
           width: 24px;
           height: 24px;
         }
         .next-arrow {
-          right: -15px;
+          right: 15px; /* Okları içeri aldık */
         }
         .prev-arrow {
-          left: -15px;
+          left: 15px; /* Okları içeri aldık */
         }
-        @media (max-width: 768px) {
-          .next-arrow { right: 10px; }
-          .prev-arrow { left: 10px; }
-        }
+        /* Noktaların stillerini iyileştirelim */
         .slick-dots li button:before {
           font-size: 12px;
           color: #fff;
@@ -118,7 +95,8 @@ const ImageModalContent: React.FC<ImageModalContentProps> = ({ title, imageUrls,
         }
       `}</style>
       
-      <h2 className="text-center text-2xl font-semibold text-white mb-5">{title}</h2>
+      {/* Başlığı resimlerin dışına, modalın üstüne taşıyabiliriz veya burada bırakabiliriz */}
+      <h2 className="text-center text-2xl font-semibold text-white mb-4">{title}</h2>
       
       {imageUrls.length <= 1 ? (
         <div className="flex justify-center">
@@ -126,19 +104,19 @@ const ImageModalContent: React.FC<ImageModalContentProps> = ({ title, imageUrls,
                 src={imageUrls[0]} 
                 alt={title} 
                 className="max-w-full h-auto object-contain rounded-lg shadow-xl"
-                style={{ maxHeight: '80vh' }}
+                style={{ maxHeight: '80vh' }} // Yüksekliği kısıtlayalım
             />
         </div>
       ) : (
         <Slider {...settings}>
           {imageUrls.map((url, index) => (
-            <div key={index} className="px-2">
-              <div className="flex justify-center items-center">
+            <div key={index}>
+              <div className="flex justify-center items-center bg-black bg-opacity-20">
                 <img 
                     src={url} 
                     alt={`${title} - ${index + 1}`} 
-                    className="max-w-full h-auto object-contain rounded-lg shadow-xl"
-                    style={{ maxHeight: '80vh' }}
+                    className="max-w-full h-auto object-contain"
+                    style={{ maxHeight: '80vh' }} // Yüksekliği kısıtlayalım
                 />
               </div>
             </div>
