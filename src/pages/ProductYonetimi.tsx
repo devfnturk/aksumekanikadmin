@@ -5,6 +5,25 @@ import pako from 'pako';
 import { useFormik } from 'formik';
 import Swal from 'sweetalert2';
 import { useLoading } from '../contexts/LoadingContext';
+import './css/productYonetimi.css';
+
+// TIPTAP İÇİN YENİ IMPORT'LAR
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Link from '@tiptap/extension-link';
+import Placeholder from '@tiptap/extension-placeholder';
+import Image from '@tiptap/extension-image';
+import {Table} from '@tiptap/extension-table';
+import TableCell from '@tiptap/extension-table-cell';
+import TableHeader from '@tiptap/extension-table-header';
+import TableRow from '@tiptap/extension-table-row';
+import CodeBlock from '@tiptap/extension-code-block';
+import TextAlign from '@tiptap/extension-text-align';
+import Highlight from '@tiptap/extension-highlight';
+import Superscript from '@tiptap/extension-superscript';
+import Subscript from '@tiptap/extension-subscript';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
 
 // --------------------------------------------------------------------------------
 // TYPES & HELPERS
@@ -85,8 +104,9 @@ const dataURLToFile = (dataUrl: string): File => {
 
 const truncateText = (text: string | undefined, maxLength: number = 50): string => {
     if (!text) return '';
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
+    const plainText = text.replace(/<[^>]*>/g, '');
+    if (plainText.length <= maxLength) return plainText;
+    return plainText.substring(0, maxLength) + '...';
 };
 
 const formatBrandActivityAreaTitle = (area: any): string => {
@@ -98,8 +118,11 @@ const formatBrandActivityAreaTitle = (area: any): string => {
 };
 
 const StyledConfirmSwal = Swal.mixin({
-  customClass: { confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mx-2', cancelButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 mx-2' },
-  buttonsStyling: false
+    customClass: { 
+        confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mx-2', 
+        cancelButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 mx-2' 
+    },
+    buttonsStyling: false
 });
 
 const StyledInfoSwal = Swal.mixin({
@@ -108,12 +131,117 @@ const StyledInfoSwal = Swal.mixin({
 });
 
 // --------------------------------------------------------------------------------
-// OPTIMIZED & EXTRACTED CHILD COMPONENTS
+// TIPTAP EDITOR COMPONENTS - YENİ
 // --------------------------------------------------------------------------------
 
-const ProductRow = memo(({ section, onToggleActive, onEdit, onDelete, onOpenTextModal, onOpenGalleryModal }: {
-    section: Section, onToggleActive: (section: Section) => void, onEdit: (section: Section) => void, onDelete: (id: string) => void, onOpenTextModal: (content: string, title: string) => void, onOpenGalleryModal: (images: string[], title: string) => void
-}) => {
+const MenuBar = ({ editor }: { editor: any }) => {
+    // SORUNU ÇÖZMEK İÇİN YAPILAN DEĞİŞİKLİK:
+    // useCallback hook'ları, koşullu return ifadesinden önceye, yani component'in en üst seviyesine taşındı.
+    const setLink = useCallback(() => {
+        if (!editor) return;
+        const previousUrl = editor.getAttributes('link').href;
+        const url = window.prompt('URL', previousUrl);
+        if (url === null) return;
+        if (url === '') {
+            editor.chain().focus().extendMarkRange('link').unsetLink().run();
+            return;
+        }
+        editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+    }, [editor]);
+
+    const addImage = useCallback(() => {
+        if (!editor) return;
+        const url = window.prompt('Resim URL');
+        if (url) {
+            editor.chain().focus().setImage({ src: url }).run();
+        }
+    }, [editor]);
+
+    // Koşullu render burada kalmaya devam ediyor. Bu sayede hook'lar her zaman çağrılır,
+    // ama JSX sadece 'editor' mevcut olduğunda render edilir.
+    if (!editor) {
+        return null;
+    }
+
+    return (
+        <div className="MenuBar border border-b-0 border-gray-300 rounded-t-md p-2 flex flex-wrap gap-2">
+            {/* Temel Stiller */}
+            <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={editor.isActive('bold') ? 'is-active' : ''}>Kalın</button>
+            <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={editor.isActive('italic') ? 'is-active' : ''}>İtalik</button>
+            <button type="button" onClick={() => editor.chain().focus().toggleHighlight().run()} className={editor.isActive('highlight') ? 'is-active' : ''}>Vurgu</button>
+            <button type="button" onClick={() => editor.chain().focus().toggleSuperscript().run()} className={editor.isActive('superscript') ? 'is-active' : ''}>x²</button>
+            <button type="button" onClick={() => editor.chain().focus().toggleSubscript().run()} className={editor.isActive('subscript') ? 'is-active' : ''}>x₂</button>
+
+            {/* Hizalama */}
+            <button type="button" onClick={() => editor.chain().focus().setTextAlign('left').run()} className={editor.isActive({ textAlign: 'left' }) ? 'is-active' : ''}>Sola</button>
+            <button type="button" onClick={() => editor.chain().focus().setTextAlign('center').run()} className={editor.isActive({ textAlign: 'center' }) ? 'is-active' : ''}>Orta</button>
+            <button type="button" onClick={() => editor.chain().focus().setTextAlign('right').run()} className={editor.isActive({ textAlign: 'right' }) ? 'is-active' : ''}>Sağa</button>
+            
+            {/* Blok Tipleri */}
+            <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} className={editor.isActive('heading', { level: 2 }) ? 'is-active' : ''}>H2</button>
+            <button type="button" onClick={() => editor.chain().focus().toggleBulletList().run()} className={editor.isActive('bulletList') ? 'is-active' : ''}>Liste</button>
+            <button type="button" onClick={() => editor.chain().focus().toggleTaskList().run()} className={editor.isActive('taskList') ? 'is-active' : ''}>Görev Listesi</button>
+            <button type="button" onClick={() => editor.chain().focus().toggleCodeBlock().run()} className={editor.isActive('codeBlock') ? 'is-active' : ''}>Kod Bloğu</button>
+            
+            {/* Link & Resim */}
+            <button type="button" onClick={setLink} className={editor.isActive('link') ? 'is-active' : ''}>Link</button>
+            <button type="button" onClick={addImage}>Resim</button>
+            
+            {/* Tablo */}
+            <button type="button" onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}>Tablo Ekle</button>
+            <button type="button" onClick={() => editor.chain().focus().addColumnAfter().run()} disabled={!editor.can().addColumnAfter()}>Sütun Ekle</button>
+            <button type="button" onClick={() => editor.chain().focus().addRowAfter().run()} disabled={!editor.can().addRowAfter()}>Satır Ekle</button>
+            <button type="button" onClick={() => editor.chain().focus().deleteTable().run()} disabled={!editor.can().deleteTable()}>Tabloyu Sil</button>
+        </div>
+    );
+};
+
+// Editör hook'unu yeni eklentilerle güncelleyelim
+const TiptapEditor = memo(({ value, onChange, placeholder }: { value: string; onChange: (data: string) => void; placeholder?: string; }) => {
+    const editor = useEditor({
+        extensions: [
+            StarterKit,
+            Placeholder.configure({ placeholder }),
+            Link.configure({ openOnClick: false, autolink: true }),
+            Image,
+            Table.configure({ resizable: true }),
+            TableRow,
+            TableHeader,
+            TableCell,
+            CodeBlock,
+            TextAlign.configure({ types: ['heading', 'paragraph'] }),
+            Highlight,
+            Superscript,
+            Subscript,
+            TaskList,
+            TaskItem.configure({ nested: true }),
+        ],
+        content: value,
+        onUpdate: ({ editor }) => {
+            onChange(editor.getHTML());
+        },
+    });
+    
+    useEffect(() => {
+        if (editor && !editor.isDestroyed && value !== editor.getHTML()) {
+            editor.commands.setContent(value, false || undefined);
+        }
+    }, [value, editor]);
+
+    return (
+        <div className="border border-gray-300 rounded-md">
+            <MenuBar editor={editor} />
+            <EditorContent editor={editor} className="min-h-[200px]" />
+        </div>
+    );
+});
+TiptapEditor.displayName = "TiptapEditor";
+
+// --------------------------------------------------------------------------------
+// CHILD COMPONENTS
+// --------------------------------------------------------------------------------
+
+const ProductRow = memo(({ section, onToggleActive, onEdit, onDelete, onOpenTextModal, onOpenGalleryModal }: { section: Section, onToggleActive: (section: Section) => void, onEdit: (section: Section) => void, onDelete: (id: string) => void, onOpenTextModal: (content: string, title: string) => void, onOpenGalleryModal: (images: string[], title: string) => void }) => {
     return (
         <tr className="text-center">
             <td className="p-3 border text-left whitespace-nowrap cursor-pointer hover:bg-gray-50" onDoubleClick={() => onOpenTextModal(section.processed.brandAreaText, 'Marka Etkinlikleri')}>{truncateText(section.processed.brandAreaText, 20)}</td>
@@ -142,7 +270,18 @@ const ProductTable = memo(({ items, ...props }: { items: Section[] } & any) => (
         <table className="table-auto border-collapse text-sm w-full">
             <thead className="bg-gray-100 text-gray-700">
                 <tr>
-                    <th className="p-3 border text-left whitespace-nowrap">Marka Etkinlikleri</th><th className="p-3 border text-left whitespace-nowrap">Başlık</th><th className="p-3 border text-left whitespace-nowrap">(EN) Başlık</th><th className="p-3 border text-left whitespace-nowrap">Açıklama</th><th className="p-3 border text-left whitespace-nowrap">(EN) Açıklama</th><th className="p-3 border text-left whitespace-nowrap">Katalog Linki</th><th className="p-3 border text-left whitespace-nowrap">Tablo</th><th className="p-3 border text-left whitespace-nowrap">Görsel</th><th className="p-3 border text-left whitespace-nowrap">Sertifika</th><th className="p-3 border text-left whitespace-nowrap">Tablo Görseli</th><th className="p-3 border text-left whitespace-nowrap">Aktif</th><th className="p-3 border text-left whitespace-nowrap">İşlemler</th>
+                    <th className="p-3 border text-left whitespace-nowrap">Marka Etkinlikleri</th>
+                    <th className="p-3 border text-left whitespace-nowrap">Başlık</th>
+                    <th className="p-3 border text-left whitespace-nowrap">(EN) Başlık</th>
+                    <th className="p-3 border text-left whitespace-nowrap">Açıklama</th>
+                    <th className="p-3 border text-left whitespace-nowrap">(EN) Açıklama</th>
+                    <th className="p-3 border text-left whitespace-nowrap">Katalog Linki</th>
+                    <th className="p-3 border text-left whitespace-nowrap">Tablo</th>
+                    <th className="p-3 border text-left whitespace-nowrap">Görsel</th>
+                    <th className="p-3 border text-left whitespace-nowrap">Sertifika</th>
+                    <th className="p-3 border text-left whitespace-nowrap">Tablo Görseli</th>
+                    <th className="p-3 border text-left whitespace-nowrap">Aktif</th>
+                    <th className="p-3 border text-left whitespace-nowrap">İşlemler</th>
                 </tr>
             </thead>
             <tbody>
@@ -153,38 +292,118 @@ const ProductTable = memo(({ items, ...props }: { items: Section[] } & any) => (
 ));
 ProductTable.displayName = "ProductTable";
 
-const ProductForm = memo(({ formik, brandActivityAreas, imageBase64, certificatesBase64, tableImageBase64, setImageBase64, setCertificatesBase64, setTableImageBase64, onCancel, editId }: any) => (
-    <form onSubmit={formik.handleSubmit} className="bg-white p-6 rounded-xl shadow-lg space-y-6 border border-gray-200">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <select name="brandActivityAreaId" value={formik.values.brandActivityAreaId} onChange={formik.handleChange} className="w-full border rounded-md p-2" required>
-                <option value="">Marka Etkinlikleri Alanı Seçiniz</option>
-                {brandActivityAreas.map((area: BrandActivityArea) => (<option key={area.id} value={area.id}>{formatBrandActivityAreaTitle(area)}</option>))}
-            </select>
-            <input type="text" name="title" value={formik.values.title} onChange={formik.handleChange} className="w-full border rounded-md p-2" placeholder="Başlık" required />
-            <input type="text" name="catalogLink" value={formik.values.catalogLink} onChange={formik.handleChange} className="w-full border rounded-md p-2" placeholder="Katalog Linki" />
-            <textarea name="description" value={formik.values.description} onChange={formik.handleChange} className="w-full border rounded-md p-2 md:col-span-2" placeholder="Açıklama" />
-            <input type="text" name="enTitle" value={formik.values.enTitle} onChange={formik.handleChange} className="w-full border rounded-md p-2" placeholder="Başlık (EN)" />
-            <textarea name="enDescription" value={formik.values.enDescription} onChange={formik.handleChange} className="w-full border rounded-md p-2 md:col-span-2" placeholder="Açıklama (EN)" />
-            <label className="flex items-center gap-2 md:col-span-2"><input type="checkbox" name="hasTable" checked={formik.values.hasTable} onChange={formik.handleChange} />Tablo içeriyor mu?</label>
-            <label className="flex items-center gap-2 md:col-span-2"><input type="checkbox" name="isActive" checked={formik.values.isActive} onChange={formik.handleChange} />Aktif mi?</label>
-            <label className="md:col-span-2">Ana Görseller (çoklu):<input type="file" multiple accept="image/*" onChange={(e) => { const files = Array.from(e.target.files || []); Promise.all(files.map(fileToBase64)).then(setImageBase64); }} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" /></label>
-            <div className="md:col-span-2 flex flex-wrap gap-2">{imageBase64.map((img: string, idx: number) => (<img key={idx} src={img} className="h-24 w-24 object-cover inline-block rounded" alt={`Ana görsel ${idx + 1}`} />))}</div>
-            <label className="md:col-span-2">Sertifikalar (çoklu):<input type="file" multiple accept="image/*" onChange={(e) => { const files = Array.from(e.target.files || []); Promise.all(files.map(fileToBase64)).then(setCertificatesBase64); }} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" /></label>
-            <div className="md:col-span-2 flex flex-wrap gap-2">{certificatesBase64.map((img: string, idx: number) => (<img key={idx} src={img} className="h-16 w-16 object-cover inline-block rounded" alt={`Sertifika ${idx + 1}`} />))}</div>
-            <label className="md:col-span-2">Tablo Görseli (tekli):<input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) fileToBase64(file).then(setTableImageBase64); }} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" /></label>
-            {tableImageBase64 && (<img src={tableImageBase64} className="h-24 w-24 object-cover rounded" alt="Tablo görseli" />)}
-        </div>
-        <div className="text-right flex justify-end gap-4">
-            <button type="button" onClick={onCancel} className="bg-gray-500 text-white px-6 py-2 rounded hover:bg-gray-600">İptal</button>
-            <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">{editId ? 'Güncelle' : 'Kaydet'}</button>
-        </div>
-    </form>
-));
+const ProductForm = ({ formik, brandActivityAreas, imageBase64, certificatesBase64, tableImageBase64, setImageBase64, setCertificatesBase64, setTableImageBase64, onCancel, editId }: any) => {
+    return (
+        <form onSubmit={formik.handleSubmit} className="bg-white p-6 rounded-xl shadow-lg space-y-6 border border-gray-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <select 
+                    name="brandActivityAreaId" 
+                    value={formik.values.brandActivityAreaId} 
+                    onChange={formik.handleChange} 
+                    className="w-full border rounded-md p-2" 
+                    required
+                >
+                    <option value="">Marka Etkinlikleri Alanı Seçiniz</option>
+                    {brandActivityAreas.map((area: BrandActivityArea) => (
+                        <option key={area.id} value={area.id}>
+                            {formatBrandActivityAreaTitle(area)}
+                        </option>
+                    ))}
+                </select>
+
+                <input 
+                    type="text" 
+                    name="title" 
+                    value={formik.values.title} 
+                    onChange={formik.handleChange} 
+                    className="w-full border rounded-md p-2" 
+                    placeholder="Başlık" 
+                    required 
+                />
+
+                <input 
+                    type="text" 
+                    name="catalogLink" 
+                    value={formik.values.catalogLink} 
+                    onChange={formik.handleChange} 
+                    className="w-full border rounded-md p-2" 
+                    placeholder="Katalog Linki" 
+                />
+
+                {/* AÇIKLAMA - Tiptap Editor */}
+                <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Açıklama
+                    </label>
+                    <TiptapEditor
+                        value={formik.values.description}
+                        onChange={(data) => formik.setFieldValue('description', data)}
+                        placeholder="Ürün açıklamasını giriniz..."
+                    />
+                </div>
+
+                <input 
+                    type="text" 
+                    name="enTitle" 
+                    value={formik.values.enTitle} 
+                    onChange={formik.handleChange} 
+                    className="w-full border rounded-md p-2" 
+                    placeholder="Başlık (EN)" 
+                />
+
+                {/* AÇIKLAMA (EN) - Tiptap Editor */}
+                <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Açıklama (EN)
+                    </label>
+                    <TiptapEditor
+                        value={formik.values.enDescription}
+                        onChange={(data) => formik.setFieldValue('enDescription', data)}
+                        placeholder="Product description in English..."
+                    />
+                </div>
+
+                <label className="flex items-center gap-2 md:col-span-2">
+                    <input type="checkbox" name="hasTable" checked={formik.values.hasTable} onChange={formik.handleChange} />
+                    Tablo içeriyor mu?
+                </label>
+
+                <label className="flex items-center gap-2 md:col-span-2">
+                    <input type="checkbox" name="isActive" checked={formik.values.isActive} onChange={formik.handleChange} />
+                    Aktif mi?
+                </label>
+
+                <label className="md:col-span-2">
+                    Ana Görseller (çoklu):
+                    <input type="file" multiple accept="image/*" onChange={(e) => { const files = Array.from(e.target.files || []); Promise.all(files.map(fileToBase64)).then(setImageBase64); }} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                </label>
+                <div className="md:col-span-2 flex flex-wrap gap-2">{imageBase64.map((img: string, idx: number) => (<img key={idx} src={img} className="h-24 w-24 object-cover inline-block rounded" alt={`Ana görsel ${idx + 1}`} />))}</div>
+
+                <label className="md:col-span-2">
+                    Sertifikalar (çoklu):
+                    <input type="file" multiple accept="image/*" onChange={(e) => { const files = Array.from(e.target.files || []); Promise.all(files.map(fileToBase64)).then(setCertificatesBase64); }} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                </label>
+                <div className="md:col-span-2 flex flex-wrap gap-2">{certificatesBase64.map((img: string, idx: number) => (<img key={idx} src={img} className="h-16 w-16 object-cover inline-block rounded" alt={`Sertifika ${idx + 1}`} />))}</div>
+
+                <label className="md:col-span-2">
+                    Tablo Görseli (tekli):
+                    <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) fileToBase64(file).then(setTableImageBase64); }} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                </label>
+                {tableImageBase64 && (<img src={tableImageBase64} className="h-24 w-24 object-cover rounded" alt="Tablo görseli" />)}
+            </div>
+
+            <div className="text-right flex justify-end gap-4 mt-8">
+                <button type="button" onClick={onCancel} className="bg-gray-500 text-white px-6 py-2 rounded hover:bg-gray-600">İptal</button>
+                <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">{editId ? 'Güncelle' : 'Kaydet'}</button>
+            </div>
+        </form>
+    );
+};
 ProductForm.displayName = "ProductForm";
 
 const TextModal = memo(({ isOpen, title, content, onClose }: { isOpen: boolean, title: string, content: string, onClose: () => void }) => {
     if (!isOpen) return null;
-    return <div className="fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full flex items-center justify-center z-50"><div className="relative p-5 border w-1/2 shadow-lg rounded-md bg-white"><h3 className="text-xl font-bold mb-4">{title}</h3><div className="mt-3 text-center"><p className="text-gray-900 text-left whitespace-pre-wrap break-words">{content}</p><div className="mt-4 flex justify-end"><button onClick={onClose} className="px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700">Kapat</button></div></div></div></div>;
+    return <div className="fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full flex items-center justify-center z-50"><div className="relative p-5 border w-1/2 shadow-lg rounded-md bg-white"><h3 className="text-xl font-bold mb-4">{title}</h3><div className="mt-3 text-center"><div className="text-gray-900 text-left" dangerouslySetInnerHTML={{ __html: content }} /><div className="mt-4 flex justify-end"><button onClick={onClose} className="px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700">Kapat</button></div></div></div></div>;
 });
 TextModal.displayName = "TextModal";
 
@@ -278,10 +497,10 @@ const ProductYonetimi: React.FC = () => {
                 } else {
                     await api.post('/products', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
                 }
-                
+
                 await fetchAllData();
                 StyledInfoSwal.fire({ title: 'Başarılı!', text: `Ürün başarıyla ${isEditing ? 'güncellendi' : 'eklendi'}.`, icon: 'success' });
-                
+
                 resetForm();
                 setEditId(null);
                 setImageBase64([]);
@@ -336,7 +555,7 @@ const ProductYonetimi: React.FC = () => {
             if (section.processed.mainImages.length) section.processed.mainImages.forEach(imgDataUrl => formData.append('images', dataURLToFile(imgDataUrl)));
             if (section.processed.certificateImages.length) section.processed.certificateImages.forEach(certDataUrl => formData.append('certificates', dataURLToFile(certDataUrl)));
             if (section.processed.tableImage) formData.append('tableImage', dataURLToFile(section.processed.tableImage));
-            
+
             await api.put(`/products/${section.id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
             await fetchAllData();
             StyledInfoSwal.fire('Güncellendi!', 'Ürünün aktiflik durumu değiştirildi.', 'success');
@@ -369,7 +588,7 @@ const ProductYonetimi: React.FC = () => {
     const prevImage = useCallback(() => { setGalleryModal(prev => ({ ...prev, currentIndex: prev.currentIndex === 0 ? prev.images.length - 1 : prev.currentIndex - 1 })); }, []);
 
     if (pageError) return <Layout><div className="p-6 text-center text-red-600 bg-red-100 rounded-md">{pageError}</div></Layout>;
-    
+
     return (
         <Layout>
             <div className="p-6 space-y-6">
@@ -382,8 +601,10 @@ const ProductYonetimi: React.FC = () => {
                     <ProductForm formik={formik} brandActivityAreas={brandActivityAreas} imageBase64={imageBase64} certificatesBase64={certificatesBase64} tableImageBase64={tableImageBase64} setImageBase64={setImageBase64} setCertificatesBase64={setCertificatesBase64} setTableImageBase64={setTableImageBase64} onCancel={handleCancelEdit} editId={editId} />
                 )}
 
-                <ProductTable items={currentItems} onEdit={handleEdit} onDelete={handleDelete} onToggleActive={toggleActiveStatus} onOpenTextModal={openTextModal} onOpenGalleryModal={openGalleryModal} />
-                
+                <div className="mt-6">
+                    <ProductTable items={currentItems} onEdit={handleEdit} onDelete={handleDelete} onToggleActive={toggleActiveStatus} onOpenTextModal={openTextModal} onOpenGalleryModal={openGalleryModal} />
+                </div>
+
                 <Pagination currentPage={currentPage} totalPages={totalPages} onPaginate={paginate} itemsPerPage={itemsPerPage} onItemsPerPageChange={handleItemsPerPageChange} />
             </div>
 
