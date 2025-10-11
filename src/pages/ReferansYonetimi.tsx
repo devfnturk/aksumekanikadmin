@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useFormik } from 'formik';
 import Layout from '../components/Layout';
 import api from '../api';
-import pako from 'pako';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 import { useLoading } from '../contexts/LoadingContext';
@@ -10,63 +9,46 @@ import Modal from '../components/Modal';
 import TextModalContent from '../components/TextModalContent';
 import ImageModalContent from '../components/ImageModalContent';
 
+// Section (Bölüm) verisi için tip tanımı
 type Section = {
   id: string;
   title: string;
   link: string;
   isActive: boolean;
-  image?: { imageData: string }[];
+  imageUrls: string[];
 };
 
-// ⚡ PERFORMANS İYİLEŞTİRMESİ #1: Image Cache
-const imageCache = new Map<string, string>();
-
-export function decodeImage(imageData: string): string {
-  if (imageCache.has(imageData)) {
-    return imageCache.get(imageData)!;
-  }
-
-  try {
-    const binary = atob(imageData);
-    const len = binary.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binary.charCodeAt(i);
+/**
+ * Google Drive dosya URL'sini küçük resim (thumbnail) URL'sine dönüştürür.
+ * @param {string} url - Orijinal Google Drive URL'si.
+ * @returns {string} Dönüştürülmüş thumbnail URL'si veya orijinal URL.
+ */
+const convertToThumbnail = (url: string): string => {
+  if (!url) return '';
+  if (url.includes('drive.google.com/file/d/')) {
+    const match = url.match(/d\/(.*?)\//);
+    if (match && match[1]) {
+      const fileId = match[1];
+      return `https://drive.google.com/thumbnail?id=${fileId}&sz=s1920`;
     }
-    const decompressed = pako.inflate(bytes);
-    let result = '';
-    for (let i = 0; i < decompressed.length; i += 0x8000) {
-      result += String.fromCharCode.apply(
-        null,
-        Array.from(decompressed.subarray(i, i + 0x8000))
-      );
-    }
-    const decoded = `data:image/jpeg;base64,${btoa(result)}`;
-    imageCache.set(imageData, decoded);
-    return decoded;
-  } catch (err) {
-    console.error('Decode error:', err);
-    return '';
   }
-}
+  return url;
+};
 
-// ⚡ YENİ: Form komponenti ayrıştırıldı - Parent re-render'dan izole
+// --- YENİ ---
+// Form komponenti, gereksiz prop'lardan arındırıldı ve daha temiz hale getirildi.
 const ReferenceForm = React.memo(({
   editId,
   onSubmit,
   initialValues,
-  onImageUpload,
-  imageBase64
 }: {
   editId: string | null;
   onSubmit: (values: any) => Promise<void>;
-  initialValues: { title: string; link: string; isActive: boolean };
-  onImageUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  imageBase64: string;
+  initialValues: { title: string; link: string; isActive: boolean; imageUrl: string };
 }) => {
   const formik = useFormik({
     initialValues,
-    enableReinitialize: true,
+    enableReinitialize: true, // Düzenleme modunda formun yeniden başlatılmasını sağlar
     onSubmit: async (values, { resetForm }) => {
       await onSubmit(values);
       resetForm();
@@ -111,17 +93,24 @@ const ReferenceForm = React.memo(({
         </select>
       </div>
       <div className="md:col-span-2">
-        <label className="block font-semibold mb-1">Resim Yükle</label>
-        <input type="file" accept="image/*" onChange={onImageUpload} />
-        {imageBase64 && (
-          <img
-            src={imageBase64}
-            alt="Yüklenen görsel"
-            className="h-32 mt-2 rounded object-cover"
-            loading="lazy"
-          />
-        )}
+        <label className="block font-semibold mb-1">Resim URL</label>
+        {/* DÜZELTME: Formik state'i (imageUrl) ile input value'su eşleştirildi. */}
+        <input
+          type="text"
+          name="imageUrl"
+          value={formik.values.imageUrl}
+          onChange={formik.handleChange}
+          className="w-full border rounded-md p-2"
+          placeholder="Google Drive Görsel URL"
+        />
       </div>
+      {formik.values.imageUrl && (
+        <div className="mt-4">
+          <p className="text-sm font-medium text-gray-700">Görsel Önizlemesi:</p>
+          {/* Önizlemeyi de thumbnail üzerinden yapalım ki hızlı yüklensin */}
+          <img src={convertToThumbnail(formik.values.imageUrl)} alt="Yüklenen görsel" className="h-32 mt-2 rounded object-cover" />
+        </div>
+      )}
       <div className="md:col-span-2">
         <button
           type="submit"
@@ -138,67 +127,54 @@ const ReferansYonetimi: React.FC = () => {
   const { showLoading, hideLoading } = useLoading();
   const [sections, setSections] = useState<Section[]>([]);
   const [editId, setEditId] = useState<string | null>(null);
-  const [imageBase64, setImageBase64] = useState<string>('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [modalChildren, setModalChildren] = useState<React.ReactNode | null>(null);
 
-  // ⚡ Form initial values'u memoize et
+  // --- DÜZELTME ---
+  // Formun başlangıç değerleri, API'ye gönderilecek veriyle tutarlı hale getirildi.
   const [formInitialValues, setFormInitialValues] = useState({
     title: '',
     link: '',
     isActive: true,
+    imageUrl: '',
   });
-  
-  // DÜZELTME: fetchSections fonksiyonu useCallback ile sarmalandı.
+
+  // Verileri API'den çeken fonksiyon
   const fetchSections = useCallback(async () => {
     showLoading();
     try {
-      const res = await api.get<Section[]>('/references');
-      setSections(res.data);
+      const res = await api.get('/references');
+      // Gelen veriyi, bileşenin kullanacağı formata dönüştür
+      const normalizedData = res.data.map((section: any) => ({
+        ...section,
+        imageUrls: section.image ? section.image.map((img: { url: string }) => img.url) : [],
+      }));
+      setSections(normalizedData);
+    } catch (err: any) {
+      console.error('Veri çekme hatası', err);
+    } finally {
       hideLoading();
-
-      setTimeout(() => {
-        res.data.forEach(section => {
-          if (section.image && section.image[0]?.imageData) {
-            decodeImage(section.image[0].imageData);
-          }
-        });
-      }, 100);
-    } catch (err) {
-      console.error(err);
-      hideLoading();
-      Swal.fire('Hata!', 'Referanslar alınamadı.', 'error');
     }
   }, [showLoading, hideLoading]);
 
-  // DÜZELTME: fetchSections bağımlılık dizisine eklendi.
+  // Bileşen yüklendiğinde verileri çek
   useEffect(() => {
     fetchSections();
   }, [fetchSections]);
 
-  const dataURLToFile = useCallback((dataUrl: string) => {
-    const arr = dataUrl.split(',');
-    const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-    const bstr = atob(arr[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while (n--) {
-      u8arr[n] = bstr.charCodeAt(n);
-    }
-    return new File([u8arr], 'image.jpg', { type: mime });
-  }, []);
-
-  // ⚡ Form submit handler'ı useCallback ile sar
-  // DÜZELTME: fetchSections bağımlılık dizisine eklendi.
+  // --- DÜZELTME ---
+  // Form gönderme fonksiyonu baştan yazıldı.
+  // 1. API endpoint'i `/references` olarak düzeltildi.
+  // 2. Payload, form alanlarıyla tutarlı hale getirildi.
+  // 3. Gereksiz bağımlılıklar (sections, imageBase64) kaldırıldı.
   const handleFormSubmit = useCallback(async (values: any) => {
     try {
       const confirmed = await Swal.fire({
-        title: editId ? 'Güncellemek istediğine emin misin?' : 'Eklemek istediğine emin misin?',
+        title: editId ? 'Güncellemek istediğinize emin misiniz?' : 'Eklemek istediğinize emin misiniz?',
         icon: 'question',
         showCancelButton: true,
         confirmButtonText: 'Evet',
         cancelButtonText: 'Hayır',
-        buttonsStyling: false,
         customClass: {
           actions: 'flex justify-center gap-4',
           confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
@@ -210,148 +186,70 @@ const ReferansYonetimi: React.FC = () => {
 
       showLoading();
 
+      // Google Drive linkini thumbnail'e çevir
+      const thumbnailUrl = convertToThumbnail(values.imageUrl);
+
+      // API'ye gönderilecek veriyi hazırla
+      const payload = {
+        title: values.title,
+        link: values.link,
+        isActive: values.isActive,
+        imageUrls: thumbnailUrl ? [thumbnailUrl] : [], // URL varsa diziye ekle
+      };
+
       if (editId) {
-        const formData = new FormData();
-        const requestObjectPut = {
-          title: values.title,
-          link: values.link,
-          isActive: values.isActive,
-        };
-        formData.append('request', new Blob([JSON.stringify(requestObjectPut)], { type: 'application/json' }));
-
-        if (imageBase64 && imageBase64.startsWith('data:')) {
-          const file = dataURLToFile(imageBase64);
-          formData.append('files', file);
-        } else {
-          const currentSection = sections.find(s => s.id === editId);
-          if (currentSection && currentSection.image && currentSection.image[0]?.imageData) {
-            const decodedImgData = decodeImage(currentSection.image[0].imageData);
-            if (decodedImgData) {
-              const file = dataURLToFile(decodedImgData);
-              formData.append('files', file);
-            }
-          }
-        }
-
-        await api.put(`/references/${editId}`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        Swal.fire({
-          title: 'Başarılı!',
-          text: 'Referans güncellendi.',
-          icon: 'success',
-          showConfirmButton: true,
-          customClass: {
-            actions: 'flex justify-center gap-4',
-            confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
-          },
-        });
+        await api.put(`/references/${editId}`, payload);
       } else {
-        const formData = new FormData();
-        const requestObjectPost = {
-          title: values.title,
-          link: values.link,
-          isActive: values.isActive,
-        };
-        formData.append('request', new Blob([JSON.stringify(requestObjectPost)], { type: 'application/json' }));
-
-        if (imageBase64 && imageBase64.startsWith('data:')) {
-          const file = dataURLToFile(imageBase64);
-          formData.append('files', file);
-        } else {
-          hideLoading();
-          Swal.fire({
-            title: 'Uyarı!',
-            text: 'Lütfen bir referans görseli yükleyin.',
-            icon: 'warning',
-            showConfirmButton: true,
-            customClass: {
-              actions: 'flex justify-center gap-4',
-              confirmButton: 'bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600',
-            },
-          });
-          return;
-        }
-
-        await api.post('/references', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        Swal.fire({
-          title: 'Başarılı!',
-          text: 'Referans eklendi.',
-          icon: 'success',
-          showConfirmButton: true,
-          customClass: {
-            actions: 'flex justify-center gap-4',
-            confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
-          },
-        });
+        await api.post('/references', payload);
       }
 
-      fetchSections();
-      setFormInitialValues({ title: '', link: '', isActive: true });
-      setImageBase64('');
+      Swal.fire({
+        title: 'Başarılı!',
+        text: editId ? 'Referans başarıyla güncellendi.' : 'Referans başarıyla eklendi.',
+        icon: 'success',
+        confirmButtonText: 'Tamam',
+      });
+
+      await fetchSections(); // Listeyi güncelle
       setEditId(null);
-      setIsFormOpen(false);
+      setIsFormOpen(false); // Formu kapat
+
     } catch (err) {
       console.error('Form gönderme hatası:', err);
-      Swal.fire({
-        title: 'Hata!',
-        text: 'İşlem gerçekleştirilemedi.',
-        icon: 'error',
-        showConfirmButton: true,
-        customClass: {
-          actions: 'flex justify-center gap-4',
-          confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
-        },
-      });
+      Swal.fire('Hata!', 'İşlem sırasında bir hata oluştu.', 'error');
     } finally {
       hideLoading();
     }
-  }, [editId, imageBase64, sections, dataURLToFile, showLoading, hideLoading, fetchSections]);
+  }, [editId, showLoading, hideLoading, fetchSections]);
 
-  const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImageBase64(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  }, []);
-
-  const getDecodedImage = useCallback((section: Section): string | null => {
-    const imageObj = Array.isArray(section.image) ? section.image[0] : null;
-    const encoded = imageObj?.imageData;
-    return encoded ? decodeImage(encoded) : null;
-  }, []);
-
+  // --- DÜZELTME ---
+  // Düzenleme fonksiyonu, formun başlangıç değerlerini doğru şekilde ayarlıyor.
+  // `isActive` ve `imageUrl` alanları artık mevcut veriden doğru alınıyor.
   const handleEdit = useCallback((section: Section) => {
     setFormInitialValues({
       title: section.title,
       link: section.link,
       isActive: section.isActive,
+      imageUrl: section.imageUrls?.[0] || '', // Varsa ilk resmi al, yoksa boş bırak
     });
-    setImageBase64(getDecodedImage(section) || '');
     setEditId(section.id);
     setIsFormOpen(true);
-  }, [getDecodedImage]);
+  }, []);
 
-  // DÜZELTME: fetchSections bağımlılık dizisine eklendi.
+  // Referans silme fonksiyonu
   const handleDelete = useCallback(async (id: string) => {
     try {
       const confirmed = await Swal.fire({
-        title: 'Silmek istediğine emin misin?',
+        title: 'Silmek istediğinize emin misiniz?',
+        text: "Bu işlem geri alınamaz!",
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: 'Evet',
+        confirmButtonText: 'Evet, Sil',
         cancelButtonText: 'Hayır',
-        buttonsStyling: false,
         customClass: {
           actions: 'flex justify-center gap-4',
-          confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
-          cancelButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700',
+          confirmButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700',
+          cancelButton: 'bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500',
         },
       });
 
@@ -359,190 +257,98 @@ const ReferansYonetimi: React.FC = () => {
 
       showLoading();
       await api.delete(`/references/${id}`);
-      await fetchSections();
-      Swal.fire({
-        title: 'Başarılı!',
-        text: 'Referans silindi.',
-        icon: 'success',
-        showConfirmButton: true,
-        customClass: {
-          actions: 'flex justify-center gap-4',
-          confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
-        },
-      });
+      await fetchSections(); // Listeyi yenile
+      Swal.fire('Silindi!', 'Referans başarıyla silindi.', 'success');
+
     } catch (err) {
       console.error('Silme hatası:', err);
-      Swal.fire({
-        title: 'Hata!',
-        text: 'İşlem gerçekleştirilemedi.',
-        icon: 'error',
-        showConfirmButton: true,
-        customClass: {
-          actions: 'flex justify-center gap-4',
-          confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
-        },
-      });
+      Swal.fire('Hata!', 'Silme işlemi sırasında bir hata oluştu.', 'error');
     } finally {
       hideLoading();
     }
   }, [showLoading, hideLoading, fetchSections]);
 
-  // DÜZELTME: fetchSections bağımlılık dizisine eklendi.
+  // --- OPTİMİZASYON ---
+  // Durum değiştirme fonksiyonu, gereksiz API çağrısını kaldırarak optimize edildi.
+  // Artık mevcut section verisini bularak payload oluşturuyor.
   const handleToggleActive = useCallback(async (id: string, newState: boolean) => {
+    const sectionToUpdate = sections.find(s => s.id === id);
+    if (!sectionToUpdate) return;
+
     try {
       const confirmed = await Swal.fire({
-        title: `Referans ${newState ? 'aktif' : 'pasif'} olacak. Devam edilsin mi?`,
+        title: `Referansı ${newState ? 'aktif' : 'pasif'} yapmak istediğinize emin misiniz?`,
         icon: 'question',
         showCancelButton: true,
         confirmButtonText: 'Evet',
         cancelButtonText: 'Hayır',
-        buttonsStyling: false,
-        customClass: {
-          actions: 'flex justify-center gap-4',
-          confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
-          cancelButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700',
-        },
       });
 
       if (!confirmed.isConfirmed) return;
 
       showLoading();
 
-      const res = await api.get(`/references/${id}`);
-      const existing = res.data;
-
-      const formData = new FormData();
-      const requestObject = {
-        title: existing.title,
-        link: existing.link,
-        isActive: newState,
+      const payload = {
+        title: sectionToUpdate.title,
+        link: sectionToUpdate.link,
+        isActive: newState, // Sadece durumu değiştir
+        imageUrls: sectionToUpdate.imageUrls
       };
-      formData.append('request', new Blob([JSON.stringify(requestObject)], { type: 'application/json' }));
 
-      if (existing.image && existing.image[0]?.imageData) {
-        const decodedImgData = decodeImage(existing.image[0].imageData);
-        if (decodedImgData) {
-          const file = dataURLToFile(decodedImgData);
-          formData.append('files', file);
-        }
-      }
+      await api.put(`/references/${id}`, payload);
+      await fetchSections(); // Listeyi yenile
+      Swal.fire('Başarılı!', `Referans durumu başarıyla güncellendi.`, 'success');
 
-      await api.put(`/references/${id}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-
-      await fetchSections();
-      Swal.fire({
-        title: 'Başarılı!',
-        text: `Durum ${newState ? 'aktif' : 'pasif'} olarak güncellendi.`,
-        icon: 'success',
-        showConfirmButton: true,
-        customClass: {
-          actions: 'flex justify-center gap-4',
-          confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
-        },
-      });
     } catch (err) {
-      console.error('Aktiflik güncellenemedi:', err);
-      Swal.fire({
-        title: 'Hata!',
-        text: 'Durum güncellenemedi.',
-        icon: 'error',
-        showConfirmButton: true,
-        customClass: {
-          actions: 'flex justify-center gap-4',
-          confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
-        },
-      });
+      console.error('Durum güncelleme hatası:', err);
+      Swal.fire('Hata!', 'Durum güncellenirken bir sorun oluştu.', 'error');
     } finally {
       hideLoading();
     }
-  }, [dataURLToFile, showLoading, hideLoading, fetchSections]);
+  }, [sections, showLoading, hideLoading, fetchSections]);
 
   const truncateText = useCallback((text: string, maxLength: number) => {
-    if (text.length > maxLength) {
-      return text.substring(0, maxLength) + '...';
-    }
-    return text;
+    if (!text) return '';
+    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
   }, []);
-
 
   const openTextModal = useCallback((content: string) => {
     setModalChildren(<TextModalContent title="Detaylı İçerik" content={content} />);
   }, []);
-  const openImageModal = useCallback((imageUrls: string[], startIndex: number) => {
-    setModalChildren(
-      <ImageModalContent
-        title="Görseli Büyüt"
-        imageUrls={imageUrls}
-        startIndex={startIndex}
-      />
-    );
+
+  const openImageModal = useCallback((imageUrls: string[]) => {
+    setModalChildren(<ImageModalContent title="Görsel" imageUrls={imageUrls} startIndex={0} />);
   }, []);
 
-  const closeModal = useCallback(() => {
-    setModalChildren(null);
-  }, []);
+  const closeModal = useCallback(() => setModalChildren(null), []);
 
-  // ⚡ PERFORMANS İYİLEŞTİRMESİ: Row Component
+  // Tablo satırı için ayrı ve memoize edilmiş bileşen
   const TableRowComponent = React.memo(({ section }: { section: Section }) => {
     const [imgSrc, setImgSrc] = useState<string>('');
-    const decodedImageUrls = useMemo(() => {
-      // section.image varsa, her bir imageData'yı decode et. Hata durumunda boş stringleri filtrele.
-      return section.image?.map(img => decodeImage(img.imageData)).filter(Boolean) ?? [];
-    }, [section.image]);
 
+    // --- DÜZELTME ---
+    // Görsel URL'si değiştiğinde, küçük resmi (thumbnail) oluşturan ve state'i güncelleyen useEffect eklendi.
     useEffect(() => {
-      const imageObj = Array.isArray(section.image) ? section.image[0] : null;
-      const encoded = imageObj?.imageData;
-
-      if (encoded) {
-        if ('requestIdleCallback' in window) {
-          requestIdleCallback(() => {
-            setImgSrc(decodeImage(encoded));
-          });
-        } else {
-          setTimeout(() => {
-            setImgSrc(decodeImage(encoded));
-          }, 0);
-        }
-      }
-    }, [section]);
+      const thumbnailUrl = convertToThumbnail(section.imageUrls?.[0] || '');
+      setImgSrc(thumbnailUrl);
+    }, [section.imageUrls]);
 
     return (
       <tr className="text-center">
-        <td
-          className="p-3 border hover:bg-gray-50 cursor-pointer"
-          onDoubleClick={() => openTextModal(section.title)}
-          title={section.title.length > 50 ? section.title : undefined}
-        >
-          {truncateText(section.title, 50)}
-        </td>
-        <td
-          className="p-3 border hover:bg-gray-50 cursor-pointer"
-          onDoubleClick={() => openTextModal(section.link)}
-          title={section.link.length > 50 ? section.link : undefined}
-        >
-          {truncateText(section.link, 50)}
-        </td>
+        <td className="p-3 border hover:bg-gray-50" title={section.title}
+        onDoubleClick={() => section.title && openTextModal(section.title)}>{truncateText(section.title, 50)}</td>
+        <td className="p-3 border hover:bg-gray-50" title={section.link}
+        onDoubleClick={() => section.link && openTextModal(section.link)}>{truncateText(section.link, 50)}</td>
         <td className="p-3 border">
           {imgSrc ? (
             <div
               className="relative w-16 h-10 mx-auto rounded overflow-hidden group cursor-pointer"
-              onClick={() => openImageModal(decodedImageUrls, 0)}
+              onClick={() => openImageModal(section.imageUrls)}
             >
-              <img
-                src={imgSrc}
-                alt="Referans görseli"
-                className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-110"
-                loading="lazy"
-              />
-              <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                <span className="text-white text-xs font-semibold">Büyüt</span>
-              </div>
+              <img src={imgSrc} alt={section.title} className="w-full h-full object-cover" loading="lazy" />
             </div>
           ) : (
-            <div className="w-16 h-10 mx-auto bg-gray-200 animate-pulse rounded"></div>
+            <div className="w-16 h-10 mx-auto bg-gray-200 rounded flex items-center justify-center text-xs text-gray-400">Görsel Yok</div>
           )}
         </td>
         <td className="p-3 border">
@@ -551,24 +357,11 @@ const ReferansYonetimi: React.FC = () => {
           </span>
         </td>
         <td className="p-3 border space-x-2">
-          <button
-            onClick={() => handleToggleActive(section.id, !section.isActive)}
-            className={`${section.isActive ? 'bg-red-500' : 'bg-green-500'} text-white px-3 py-1 rounded hover:opacity-90`}
-          >
+          <button onClick={() => handleToggleActive(section.id, !section.isActive)} className={`${section.isActive ? 'bg-red-500' : 'bg-green-500'} text-white px-3 py-1 rounded hover:opacity-90`}>
             {section.isActive ? 'Pasifleştir' : 'Aktifleştir'}
           </button>
-          <button
-            onClick={() => handleEdit(section)}
-            className="bg-yellow-400 px-3 py-1 rounded hover:bg-yellow-500"
-          >
-            Düzenle
-          </button>
-          <button
-            onClick={() => handleDelete(section.id)}
-            className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
-          >
-            Sil
-          </button>
+          <button onClick={() => handleEdit(section)} className="bg-yellow-400 px-3 py-1 rounded hover:bg-yellow-500">Düzenle</button>
+          <button onClick={() => handleDelete(section.id)} className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700">Sil</button>
         </td>
       </tr>
     );
@@ -581,12 +374,14 @@ const ReferansYonetimi: React.FC = () => {
         <div className="text-right">
           <button
             onClick={() => {
-              setIsFormOpen(!isFormOpen);
-              if (isFormOpen) {
-                setFormInitialValues({ title: '', link: '', isActive: true });
-                setImageBase64('');
+              // --- DÜZELTME ---
+              // Form açma/kapama mantığı basitleştirildi.
+              // "Yeni Ekle" butonuna basıldığında form sıfırlanıyor.
+              if (!isFormOpen) {
                 setEditId(null);
+                setFormInitialValues({ title: '', link: '', isActive: true, imageUrl: '' });
               }
+              setIsFormOpen(!isFormOpen);
             }}
             className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition"
           >
@@ -599,8 +394,6 @@ const ReferansYonetimi: React.FC = () => {
             editId={editId}
             onSubmit={handleFormSubmit}
             initialValues={formInitialValues}
-            onImageUpload={handleImageUpload}
-            imageBase64={imageBase64}
           />
         )}
 
@@ -621,9 +414,7 @@ const ReferansYonetimi: React.FC = () => {
               ))}
               {sections.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="p-4 text-center text-gray-400">
-                    Henüz içerik eklenmedi.
-                  </td>
+                  <td colSpan={5} className="p-4 text-center text-gray-400">Henüz içerik eklenmedi.</td>
                 </tr>
               )}
             </tbody>

@@ -1,11 +1,16 @@
 import React, { useState } from 'react';
 import './App.css';
-import { BrowserRouter as Router, Route, Routes, useNavigate } from 'react-router-dom';
+// --- YENİ EKLENDİ ---
+// Outlet ve Navigate, korumalı rota mantığı için gereklidir.
+import { BrowserRouter as Router, Route, Routes, useNavigate, Outlet, Navigate } from 'react-router-dom';
 
 import { LoadingProvider, useLoading } from './contexts/LoadingContext';
 import LoadingLayer from './components/loading/LoadingLayer';
 
 import loginImage from './img/aksuLogo.jpg';
+// --- YENİ EKLENDİ ---
+// Header'ı artık burada kullanarak sadece korumalı sayfalarda görünmesini sağlayacağız.
+import Header from './components/Header'; 
 import HomePage from './pages/HomePage';
 import SifreYonetimi from './pages/SifreYonetimi';
 import BannerYonetimi from './pages/BannerYonetimi';
@@ -22,27 +27,56 @@ import 'sweetalert2/dist/sweetalert2.min.css';
 import CatalogYönetimi from './pages/CatalogYönetimi';
 import BrandActivityMarkaYonetimi from './pages/BrandActivityMarkaYonetimi';
 
+
+// --- YENİ EKLENDİ: KORUMALI ROTA BİLEŞENİ ---
+const ProtectedRoutes: React.FC = () => {
+  // sessionStorage'da kullanıcı adı var mı diye kontrol et.
+  const isAuthenticated = !!sessionStorage.getItem('username');
+
+  if (!isAuthenticated) {
+    // Giriş yapılmamışsa, kullanıcıyı anasayfaya (login sayfasına) yönlendir.
+    return <Navigate to="/" replace />;
+  }
+
+  // Giriş yapılmışsa, Header'ı ve istenen sayfayı (Outlet) göster.
+  return (
+    <>
+      <Header />
+      <main className="p-4"> {/* Sayfa içeriği için bir sarmalayıcı */}
+        <Outlet /> 
+      </main>
+    </>
+  );
+};
+
+
 const App: React.FC = () => {
   return (
     <LoadingProvider>
       <Router>
         <LoadingLayer />
         
+        {/* --- DEĞİŞİKLİK 3: ROTA YAPISI GÜNCELLENDİ --- */}
         <Routes>
+          {/* Herkesin erişebileceği rota */}
           <Route path="/" element={<LoginPage />} />
-          <Route path="/home" element={<HomePage />} />
-          <Route path="/sifreYonetimi" element={<SifreYonetimi />} />
-          <Route path="/dataOfAksuYonetimi" element={<DataOfAksuYonetimi />} />
-          <Route path="/bannerYonetimi" element={<BannerYonetimi />} />
-          <Route path="/referansYonetimi" element={<ReferansYonetimi />} />
-          <Route path="/bizeUlasinYonetimi" element={<BizeUlasinYonetimi />} />
-          <Route path="/iletisimYonetimi" element={<IletisimYonetimi />} />
-          <Route path="/catalogYönetimi" element={<CatalogYönetimi />} />
-          <Route path="/projectYonetimi" element={<ProjectYonetimi />} />
-          <Route path="/brandYonetimi" element={<BrandYonetimi />} />
-          <Route path="/brandActivityAreasYonetimi" element={<BrandActivityAreasYonetimi />} />
-          <Route path="/productYonetimi" element={<ProductYonetimi />} />
-          <Route path="/brandActivityMarkaYonetimi" element={<BrandActivityMarkaYonetimi />} />
+
+          {/* Sadece giriş yapmış kullanıcıların erişebileceği korumalı rotalar */}
+          <Route element={<ProtectedRoutes />}>
+            <Route path="/home" element={<HomePage />} />
+            <Route path="/sifreYonetimi" element={<SifreYonetimi />} />
+            <Route path="/dataOfAksuYonetimi" element={<DataOfAksuYonetimi />} />
+            <Route path="/bannerYonetimi" element={<BannerYonetimi />} />
+            <Route path="/referansYonetimi" element={<ReferansYonetimi />} />
+            <Route path="/bizeUlasinYonetimi" element={<BizeUlasinYonetimi />} />
+            <Route path="/iletisimYonetimi" element={<IletisimYonetimi />} />
+            <Route path="/catalogYönetimi" element={<CatalogYönetimi />} />
+            <Route path="/projectYonetimi" element={<ProjectYonetimi />} />
+            <Route path="/brandYonetimi" element={<BrandYonetimi />} />
+            <Route path="/brandActivityAreasYonetimi" element={<BrandActivityAreasYonetimi />} />
+            <Route path="/productYonetimi" element={<ProductYonetimi />} />
+            <Route path="/brandActivityMarkaYonetimi" element={<BrandActivityMarkaYonetimi />} />
+          </Route>
         </Routes>
       </Router>
     </LoadingProvider>
@@ -53,23 +87,19 @@ const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
-  
-  // 3. `useLoading` hook'unu çağırarak loading fonksiyonlarına erişiyoruz.
   const { showLoading, hideLoading } = useLoading();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    showLoading(); // API isteği başlamadan hemen önce loading'i göster.
+    showLoading();
 
     try {
-      const response = await api.post('/auth/login', {
-        username,
-        password
-      });
+      const response = await api.post('/auth/login', { username, password });
       
       if (response.status === 200) {
-        localStorage.setItem('username', username);
+        // --- DEĞİŞİKLİK 1: localStorage -> sessionStorage ---
+        // Kullanıcı bilgisi artık sadece mevcut sekme açıkken saklanacak.
+        sessionStorage.setItem('username', username);
         navigate('/home');
       } else {
         alert('Giriş başarısız');
@@ -87,14 +117,11 @@ const LoginPage: React.FC = () => {
   };
 
   return (
+    // JSX kodun olduğu gibi kalabilir...
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <div className="bg-white p-8 rounded-2xl shadow-md w-full max-w-sm">
         <div className="mb-6">
-          <img
-            src={loginImage}
-            alt="Login"
-            className="w-full h-30 rounded-md"
-          />
+          <img src={loginImage} alt="Login" className="w-full h-30 rounded-md" />
         </div>
         <h2 className="text-2xl font-bold mb-6 text-center">Giriş Yap</h2>
         <form className="space-y-4" onSubmit={handleLogin}>

@@ -1,34 +1,44 @@
 import React, { useState, useRef, useEffect } from 'react';
+// useCallback artık kullanılmadığı için import listesinden kaldırıldı.
 import { Link, useNavigate } from 'react-router-dom';
 import logo from '../img/aksuLogo.jpg';
 
 const Header: React.FC = () => {
     const navigate = useNavigate();
-    const username = localStorage.getItem('username');
+    const username = sessionStorage.getItem('username');
     
-    // Separate states for each dropdown
     const [isPageDropdownOpen, setIsPageDropdownOpen] = useState(false);
     const [isSocialDropdownOpen, setIsSocialDropdownOpen] = useState(false);
 
-    // Refs for the dropdowns
     const pageDropdownRef = useRef<HTMLDivElement | null>(null);
     const socialDropdownRef = useRef<HTMLDivElement | null>(null);
 
+    // --- KALDIRILAN BÖLÜM ---
+    // TIMEOUT_DURATION, timeoutRef, endSession, logoutDueToInactivity, ve resetTimeout 
+    // fonksiyonları ve ilgili useEffect kancası kaldırıldı.
+    // Artık otomatik oturum kapatma özelliği bulunmuyor.
+
+    // Sadece kullanıcı girişi olup olmadığını kontrol eden useEffect kaldı.
+    useEffect(() => {
+        // Eğer kullanıcı adı sessionStorage'da yoksa, giriş sayfasına yönlendir.
+        if (!username) {
+            if (window.location.pathname !== '/') {
+                 navigate('/');
+            }
+        }
+    }, [username, navigate]);
+
+    // Manuel çıkış yapma fonksiyonu basitleştirildi.
     const handleLogout = () => {
-        localStorage.clear();
+        sessionStorage.clear();
         navigate('/');
     };
 
-    // Toggle functions for dropdowns
-    const togglePageDropdown = () => {
-        setIsPageDropdownOpen(!isPageDropdownOpen);
-    };
+    // Dropdown toggle fonksiyonları
+    const togglePageDropdown = () => setIsPageDropdownOpen(!isPageDropdownOpen);
+    const toggleSocialDropdown = () => setIsSocialDropdownOpen(!isSocialDropdownOpen);
 
-    const toggleSocialDropdown = () => {
-        setIsSocialDropdownOpen(!isSocialDropdownOpen);
-    };
-
-    // Close dropdowns when clicking outside
+    // Dışarı tıklandığında dropdown'ları kapatan useEffect.
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (pageDropdownRef.current && !pageDropdownRef.current.contains(event.target as Node)) {
@@ -39,16 +49,19 @@ const Header: React.FC = () => {
             }
         };
 
-        // Add event listener
         document.addEventListener('click', handleClickOutside);
-
-        // Cleanup on unmount
         return () => {
             document.removeEventListener('click', handleClickOutside);
         };
     }, []);
+    
+    // Kullanıcı girişi yoksa Header'ı hiç gösterme.
+    if (!username) {
+        return null;
+    }
 
     return (
+        // JSX kodunun geri kalanı aynı...
         <header className="bg-white shadow-md">
             <div className="px-6 py-3 flex items-center justify-between">
                 {/* Sol Logo */}
@@ -107,7 +120,6 @@ const Header: React.FC = () => {
                         <Link to="/sifreYonetimi" className="hover:text-blue-600 transition">Şifre Yönetimi</Link>
                     </nav>
                 </div>
-
                 {/* Sağ Bilgiler */}
                 <div className="flex items-center space-x-6 text-sm text-gray-700">
                     {username && <span className="font-medium">Hoşgeldin, {username}</span>}

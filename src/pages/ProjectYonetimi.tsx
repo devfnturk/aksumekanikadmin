@@ -1,7 +1,7 @@
+
 import React, { useEffect, useState, useCallback } from 'react';
 import Layout from '../components/Layout';
 import { useFormik } from 'formik';
-import pako from 'pako';
 import api from '../api';
 import Swal from 'sweetalert2';
 import { useLoading } from '../contexts/LoadingContext';
@@ -13,8 +13,7 @@ import ImageModalContent from '../components/ImageModalContent';
 
 type Image = {
   id: string;
-  name?: string;
-  imageData: string;
+  url: string;
 };
 
 type Section = {
@@ -39,89 +38,31 @@ type Section = {
   enDescription: string;
 };
 
-// ⚡ PERFORMANS İYİLEŞTİRMESİ #1: Image Cache
-const imageCache = new Map<string, string>();
-
-export function decodeImage(imageData: string): string {
-  if (imageCache.has(imageData)) {
-    return imageCache.get(imageData)!;
-  }
-
-  try {
-    const binary = atob(imageData);
-    const len = binary.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
-    const decompressed = pako.inflate(bytes);
-    let result = '';
-    for (let i = 0; i < decompressed.length; i += 0x8000) {
-      result += String.fromCharCode.apply(null, Array.from(decompressed.subarray(i, i + 0x8000)));
+// Google Drive URL'lerini thumbnail'e çeviren yardımcı fonksiyon
+const convertToThumbnail = (url: string): string => {
+  if (!url) return '';
+  if (url.includes('drive.google.com/file/d/')) {
+    const match = url.match(/d\/(.*?)\//);
+    if (match && match[1]) {
+      const fileId = match[1];
+      return `https://drive.google.com/thumbnail?id=${fileId}&sz=s1920`;
     }
-    const decoded = `data:image/jpeg;base64,${btoa(result)}`;
-    imageCache.set(imageData, decoded);
-    return decoded;
-  } catch (err) {
-    console.error('Decode error:', err);
-    return '';
   }
-}
-
-const dataURLToFile = (dataUrl: string, fileName: string = 'image.jpg'): File => {
-  const arr = dataUrl.split(',');
-  const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-  const bstr = atob(arr[1]);
-  let n = bstr.length;
-  const u8arr = new Uint8Array(n);
-  while (n--) {
-    u8arr[n] = bstr.charCodeAt(n);
-  }
-  return new File([u8arr], fileName, { type: mime });
+  return url;
 };
 
-// ⚡ PERFORMANS İYİLEŞTİRMESİ #2: Image Decoder Component
-const ImageDecoder: React.FC<{ imageData: string; altText: string }> = ({ imageData, altText }) => {
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
 
-  useEffect(() => {
-    if ('requestIdleCallback' in window) {
-      requestIdleCallback(() => {
-        setImageUrl(decodeImage(imageData));
-      });
-    } else {
-      setTimeout(() => {
-        setImageUrl(decodeImage(imageData));
-      }, 0);
-    }
-  }, [imageData]);
-
-  if (!imageUrl) {
-    return <div className="w-16 h-10 bg-gray-200 animate-pulse rounded"></div>;
-  }
-
-  return <img src={imageUrl} alt={altText} className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-110" loading="lazy" />;
-};
-
-const MemoizedImageDecoder = React.memo(ImageDecoder);
-
-// ⚡ PERFORMANS İYİLEŞTİRMESİ #3: Form Component - İzole edildi
+// --- Form Bileşeni - GÖRSEL ÖNİZLEME EKLENDİ ---
 const ProjectForm = React.memo(({
-  editId,
   onSubmit,
   initialValues,
-  existingImages,
-  filesToUpload,
-  onImageUpload,
-  onRemoveNewImage,
+  initialImages,
   onDeleteExistingImage,
   onCancel
 }: {
-  editId: string | null;
-  onSubmit: (values: any) => Promise<void>;
+  onSubmit: (values: any, imageUrls: { id: string | null; url: string }[]) => Promise<void>;
   initialValues: any;
-  existingImages: { id: string, data: string }[];
-  filesToUpload: File[];
-  onImageUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onRemoveNewImage: (index: number) => void;
+  initialImages: Image[];
   onDeleteExistingImage: (imageId: string) => void;
   onCancel: () => void;
 }) => {
@@ -129,12 +70,43 @@ const ProjectForm = React.memo(({
     initialValues,
     enableReinitialize: true,
     onSubmit: async (values) => {
-      await onSubmit(values);
+      await onSubmit(values, images);
     }
   });
 
+  const [images, setImages] = useState<{ id: string | null; url: string }[]>([]);
+
+  useEffect(() => {
+    if (initialImages && initialImages.length > 0) {
+      setImages(initialImages);
+    } else {
+      setImages([{ id: null, url: '' }]);
+    }
+  }, [initialImages]);
+
+
+  const handleUrlChange = (index: number, value: string) => {
+    const updatedImages = [...images];
+    updatedImages[index].url = value;
+    setImages(updatedImages);
+  };
+
+  const addUrlInput = () => {
+    setImages([...images, { id: null, url: '' }]);
+  };
+
+  const removeUrlInput = (index: number) => {
+    const imageToRemove = images[index];
+    if (imageToRemove.id) {
+      onDeleteExistingImage(imageToRemove.id);
+    }
+    setImages(images.filter((_, i) => i !== index));
+  };
+
+
   return (
     <form onSubmit={formik.handleSubmit} className="space-y-6 p-6 bg-white rounded-lg shadow-xl border">
+      {/* Diğer form alanları aynı kaldı... */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label htmlFor="title" className="block text-sm font-semibold text-gray-800">Başlık</label>
@@ -242,7 +214,6 @@ const ProjectForm = React.memo(({
           />
         </div>
       </div>
-
       <div className="flex items-center space-x-6">
         <label className="flex items-center text-sm font-semibold text-gray-800">
           <input
@@ -268,97 +239,92 @@ const ProjectForm = React.memo(({
         </label>
       </div>
 
+      {/********** DEĞİŞİKLİK BURADA **********/}
       <div>
-        <label htmlFor="files" className="block text-sm font-semibold text-gray-800">Görsel Yükle (Çoklu seçim yapabilirsiniz)</label>
-        <input
-          type="file"
-          accept="image/*"
-          onChange={onImageUpload}
-          className="mt-2 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-          multiple
-        />
-
-        {(existingImages.length > 0 || filesToUpload.length > 0) && (
-          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {existingImages.map((image) => (
-              <div key={image.id} className="relative group h-32">
-                <MemoizedImageDecoder imageData={image.data} altText="Mevcut görsel" />
-                <button
-                  type="button"
-                  onClick={() => onDeleteExistingImage(image.id)}
-                  className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 w-6 h-6 flex items-center justify-center text-xs opacity-80 group-hover:opacity-100"
-                >
-                  &#x2715;
-                </button>
-              </div>
-            ))}
-            {filesToUpload.map((file, index) => (
-              <div key={index} className="relative group h-32">
+        <label className="block text-sm font-semibold text-gray-800">Görsel URL'leri</label>
+        {images.map((image, index) => (
+          <div key={index} className="mt-2 flex items-center gap-3">
+            {/* --- YENİ: Görsel Önizleme Kutusu --- */}
+            <div className="w-20 h-14 flex-shrink-0 bg-gray-100 rounded border flex items-center justify-center overflow-hidden">
+              {image.url ? (
                 <img
-                  src={URL.createObjectURL(file)}
-                  alt={`Yüklenecek ${index + 1}`}
-                  className="h-full w-full object-cover rounded shadow-sm"
+                  src={convertToThumbnail(image.url)}
+                  alt={`Önizleme ${index + 1}`}
+                  className="w-full h-full object-cover"
+                  // Hata durumunda kırık resim ikonunu gizle
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  // Tekrar geçerli bir URL girilirse görünür yap
+                  onLoad={(e) => { e.currentTarget.style.display = 'block'; }}
                   loading="lazy"
                 />
-                <button
-                  type="button"
-                  onClick={() => onRemoveNewImage(index)}
-                  className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 w-6 h-6 flex items-center justify-center text-xs opacity-80 group-hover:opacity-100"
-                >
-                  &#x2715;
-                </button>
-              </div>
-            ))}
+              ) : (
+                <span className="text-xs text-gray-400 text-center px-1">URL Girin</span>
+              )}
+            </div>
+
+            {/* URL Giriş Alanı */}
+            <input
+              type="text"
+              value={image.url}
+              onChange={(e) => handleUrlChange(index, e.target.value)}
+              placeholder="https://example.com/image.jpg"
+              className="flex-grow px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+            />
+
+            {/* Butonlar */}
+            <button
+              type="button"
+              onClick={() => removeUrlInput(index)}
+              className="bg-red-500 text-white w-8 h-8 rounded-md hover:bg-red-600 flex items-center justify-center font-bold flex-shrink-0"
+            >
+              -
+            </button>
+            {index === images.length - 1 && (
+              <button
+                type="button"
+                onClick={addUrlInput}
+                className="bg-green-500 text-white w-8 h-8 rounded-md hover:bg-green-600 flex items-center justify-center font-bold flex-shrink-0"
+              >
+                +
+              </button>
+            )}
           </div>
+        ))}
+        {images.length === 0 && (
+             <button
+                type="button"
+                onClick={addUrlInput}
+                className="mt-2 bg-green-500 text-white px-3 py-1 rounded-md hover:bg-green-600 text-sm"
+              >
+                Görsel Ekle
+              </button>
         )}
       </div>
+      {/******************************************/}
 
       <div className="flex justify-end gap-4">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="bg-gray-500 text-white px-6 py-2 rounded-md hover:bg-gray-600"
-        >
-          İptal
-        </button>
-        <button
-          type="submit"
-          className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700"
-        >
-          {editId ? 'Güncelle' : 'Kaydet'}
-        </button>
+        <button type="button" onClick={onCancel} className="bg-gray-500 text-white px-6 py-2 rounded-md hover:bg-gray-600">İptal</button>
+        <button type="submit" className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700">Kaydet</button>
       </div>
     </form>
   );
 });
 
-// --- ANA BİLEŞEN ---
+
+// --- ANA BİLEŞEN (Değişiklik yok) ---
 const ProjectYonetimi: React.FC = () => {
   const { showLoading, hideLoading } = useLoading();
   const [sections, setSections] = useState<Section[]>([]);
   const [editId, setEditId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [modalChildren, setModalChildren] = useState<React.ReactNode | null>(null);
-
-  // Resim Yönetimi State'leri
-  const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
-  const [existingImages, setExistingImages] = useState<{ id: string, data: string }[]>([]);
   const [imageIdsToDelete, setImageIdsToDelete] = useState<Set<string>>(new Set());
+  const [initialImagesForForm, setInitialImagesForForm] = useState<Image[]>([]);
 
-  // ⚡ Form initial values
   const [formInitialValues, setFormInitialValues] = useState({
-    fieldOfActivityId: '',
-    title: '',
-    description: '',
-    client: '',
-    location: '',
-    area: '',
-    projectDate: '',
-    link: '',
-    isCompleted: true,
-    enTitle: '',
-    enDescription: '',
-    isActive: true,
+    fieldOfActivityId: '', title: '', description: '', client: '',
+    location: '', area: '', projectDate: '', link: '',
+    isCompleted: true, enTitle: '', enDescription: '', isActive: true,
   });
 
   const fetchSections = useCallback(async () => {
@@ -366,17 +332,6 @@ const ProjectYonetimi: React.FC = () => {
     try {
       const res = await api.get<Section[]>('/project-management');
       setSections(res.data);
-
-      // ⚡ Görselleri arka planda cache'e yükle
-      setTimeout(() => {
-        res.data.forEach(section => {
-          if (section.image && section.image.length > 0) {
-            section.image.forEach(img => {
-              decodeImage(img.imageData);
-            });
-          }
-        });
-      }, 100);
     } catch (err) {
       console.error('Veri çekme hatası', err);
       Swal.fire('Hata!', 'Veriler alınırken hata oluştu.', 'error');
@@ -391,68 +346,46 @@ const ProjectYonetimi: React.FC = () => {
 
   const resetFormAndImages = useCallback(() => {
     setFormInitialValues({
-      fieldOfActivityId: '',
-      title: '',
-      description: '',
-      client: '',
-      location: '',
-      area: '',
-      projectDate: '',
-      link: '',
-      isCompleted: true,
-      enTitle: '',
-      enDescription: '',
-      isActive: true,
+      fieldOfActivityId: '', title: '', description: '', client: '',
+      location: '', area: '', projectDate: '', link: '',
+      isCompleted: true, enTitle: '', enDescription: '', isActive: true,
     });
     setEditId(null);
-    setFilesToUpload([]);
-    setExistingImages([]);
     setImageIdsToDelete(new Set());
+    setInitialImagesForForm([]);
   }, []);
 
-  const handleFormSubmit = useCallback(async (values: any) => {
+  const handleFormSubmit = useCallback(async (values: any, images: { id: string | null; url: string }[]) => {
     const result = await Swal.fire({
       title: editId ? 'Projeyi güncellemek istediğinize emin misiniz?' : 'Yeni proje eklemek istediğinize emin misiniz?',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'Evet',
-      cancelButtonText: 'Hayır',
-      buttonsStyling: false,
+      icon: 'warning', showCancelButton: true, confirmButtonText: 'Evet',
+      cancelButtonText: 'Hayır', buttonsStyling: false,
       customClass: {
         actions: 'flex justify-center gap-4',
         confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
         cancelButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700',
       },
     });
-
     if (!result.isConfirmed) return;
-
     showLoading();
 
-    const formattedProjectDate = values.projectDate ? new Date(values.projectDate).toISOString().split('T')[0] : '';
+    const newImageUrls = images
+      .filter(img => img.id === null && img.url.trim() !== '')
+      .map(img => convertToThumbnail(img.url));
 
-    const requestObject: any = {
+    const requestPayload = {
       ...values,
-      projectDate: formattedProjectDate,
+      projectDate: values.projectDate ? new Date(values.projectDate).toISOString().split('T')[0] : '',
+      imageUrls: newImageUrls,
+      deleteImageIds: Array.from(imageIdsToDelete),
     };
-
-    if (editId) {
-      requestObject.deleteImageIds = Array.from(imageIdsToDelete);
-    }
-
-    const formData = new FormData();
-    formData.append('request', new Blob([JSON.stringify(requestObject)], { type: 'application/json' }));
-
-    filesToUpload.forEach(file => {
-      formData.append('files', file);
-    });
 
     try {
       if (editId) {
-        await api.put(`/project-management/${editId}`, formData);
+        await api.put(`/project-management/${editId}`, requestPayload);
         Swal.fire('Başarılı!', 'Proje başarıyla güncellendi.', 'success');
       } else {
-        await api.post('/project-management', formData);
+        await api.post('/project-management', requestPayload);
         Swal.fire('Başarılı!', 'Yeni proje başarıyla eklendi.', 'success');
       }
       fetchSections();
@@ -464,21 +397,10 @@ const ProjectYonetimi: React.FC = () => {
     } finally {
       hideLoading();
     }
-  }, [editId, imageIdsToDelete, filesToUpload, showLoading, hideLoading, resetFormAndImages, fetchSections]);
-
-  const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setFilesToUpload(prev => [...prev, ...Array.from(e.target.files!)]);
-    }
-  }, []);
-
-  const handleRemoveNewImage = useCallback((index: number) => {
-    setFilesToUpload(prev => prev.filter((_, i) => i !== index));
-  }, []);
+  }, [editId, imageIdsToDelete, showLoading, hideLoading, resetFormAndImages, fetchSections]);
 
   const handleDeleteExistingImage = useCallback((imageId: string) => {
     setImageIdsToDelete(prev => new Set(prev).add(imageId));
-    setExistingImages(prev => prev.filter(img => img.id !== imageId));
   }, []);
 
   const handleEdit = useCallback((section: Section) => {
@@ -486,21 +408,14 @@ const ProjectYonetimi: React.FC = () => {
     const formattedProjectDate = section.projectDate ? new Date(section.projectDate).toISOString().split('T')[0] : '';
     setFormInitialValues({
       fieldOfActivityId: section.fieldOfActivity?.id || '',
-      title: section.title,
-      description: section.description,
-      client: section.client,
-      location: section.location,
-      area: section.area,
-      projectDate: formattedProjectDate,
-      link: section.link,
-      isCompleted: section.isCompleted,
-      enTitle: section.enTitle,
-      enDescription: section.enDescription,
-      isActive: section.isActive,
+      title: section.title, description: section.description, client: section.client,
+      location: section.location, area: section.area, projectDate: formattedProjectDate,
+      link: section.link, isCompleted: section.isCompleted, enTitle: section.enTitle,
+      enDescription: section.enDescription, isActive: section.isActive,
     });
-    if (section.image && Array.isArray(section.image)) {
-      setExistingImages(section.image.map(img => ({ id: img.id, data: img.imageData })));
-    }
+    
+    setInitialImagesForForm(section.image || []);
+    
     setEditId(section.id);
     setIsFormOpen(true);
     window.scrollTo(0, 0);
@@ -508,33 +423,30 @@ const ProjectYonetimi: React.FC = () => {
 
   const handleDelete = useCallback(async (id: string) => {
     const result = await Swal.fire({
-      title: 'Bu projeyi silmek istediğinize emin misiniz?',
-      text: "Bu işlem geri alınamaz!",
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'Evet, sil!',
-      cancelButtonText: 'Hayır, iptal et',
-      buttonsStyling: false,
-      customClass: {
-        actions: 'flex justify-center gap-4',
-        confirmButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700',
-        cancelButton: 'bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700',
-      },
-    });
-
-    if (!result.isConfirmed) return;
-
-    showLoading();
-    try {
-      await api.delete(`/project-management/${id}`);
-      fetchSections();
-      Swal.fire('Silindi!', 'Proje başarıyla silindi.', 'success');
-    } catch (err) {
-      console.error('Silme hatası:', err);
-      Swal.fire('Hata!', 'Silme sırasında bir hata oluştu.', 'error');
-    } finally {
-      hideLoading();
-    }
+        title: 'Bu projeyi silmek istediğinize emin misiniz?',
+        text: "Bu işlem geri alınamaz!", icon: 'warning', showCancelButton: true,
+        confirmButtonText: 'Evet, sil!', cancelButtonText: 'Hayır, iptal et',
+        buttonsStyling: false,
+        customClass: {
+          actions: 'flex justify-center gap-4',
+          confirmButton: 'bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700',
+          cancelButton: 'bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700',
+        },
+      });
+  
+      if (!result.isConfirmed) return;
+  
+      showLoading();
+      try {
+        await api.delete(`/project-management/${id}`);
+        fetchSections();
+        Swal.fire('Silindi!', 'Proje başarıyla silindi.', 'success');
+      } catch (err) {
+        console.error('Silme hatası:', err);
+        Swal.fire('Hata!', 'Silme sırasında bir hata oluştu.', 'error');
+      } finally {
+        hideLoading();
+      }
   }, [showLoading, hideLoading, fetchSections]);
 
   const handleToggleBoolean = useCallback(async (project: Section, field: 'isActive' | 'isCompleted') => {
@@ -544,11 +456,8 @@ const ProjectYonetimi: React.FC = () => {
 
     const result = await Swal.fire({
       title: `Proje ${fieldText} "${newStatusText}" olarak değiştirmek istediğinize emin misiniz?`,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Evet',
-      cancelButtonText: 'Hayır',
-      buttonsStyling: false,
+      icon: 'question', showCancelButton: true, confirmButtonText: 'Evet',
+      cancelButtonText: 'Hayır', buttonsStyling: false,
       customClass: {
         actions: 'flex justify-center gap-4',
         confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
@@ -559,28 +468,15 @@ const ProjectYonetimi: React.FC = () => {
     if (!result.isConfirmed) return;
 
     showLoading();
-
     try {
-      const { image, ...projectData } = project;
-      const requestObject = {
-        ...projectData,
+      const payload = {
+        ...project,
+        imageUrls: project.image?.map(img => img.url) || [],
         [field]: newStatus,
       };
+      delete (payload as any).image;
 
-      const formData = new FormData();
-      formData.append('request', new Blob([JSON.stringify(requestObject)], { type: 'application/json' }));
-
-      if (project.image && project.image.length > 0) {
-        project.image.forEach((img, index) => {
-          const decodedImage = decodeImage(img.imageData);
-          if (decodedImage) {
-            const imageFile = dataURLToFile(decodedImage, img.name || `image-${index}.jpg`);
-            formData.append('files', imageFile);
-          }
-        });
-      }
-
-      await api.put(`/project-management/${project.id}`, formData);
+      await api.put(`/project-management/${project.id}`, payload);
 
       fetchSections();
       Swal.fire('Başarılı!', `Proje ${fieldText} güncellendi.`, 'success');
@@ -595,10 +491,7 @@ const ProjectYonetimi: React.FC = () => {
 
   const truncateText = useCallback((text: string | undefined, maxLength: number = 50) => {
     if (!text) return '';
-    if (text.length > maxLength) {
-      return text.substring(0, maxLength) + '...';
-    }
-    return text;
+    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
   }, []);
 
   const openTextModal = useCallback((content: string) => {
@@ -607,30 +500,22 @@ const ProjectYonetimi: React.FC = () => {
 
   const openImageModal = useCallback((images: Image[], startIndex: number = 0) => {
     if (!images || images.length === 0) return;
-
-    const decodedImageUrls = images.map(img => decodeImage(img.imageData)).filter(Boolean);
-
-    if (decodedImageUrls.length > 0) {
-      setModalChildren(
-        <ImageModalContent
-          title="Proje Görselleri"
-          imageUrls={decodedImageUrls}
-          startIndex={startIndex}
-        />
-      );
-    }
+    const imageUrls = images.map(img => img.url);
+    setModalChildren(
+      <ImageModalContent
+        title="Proje Görselleri"
+        imageUrls={imageUrls}
+        startIndex={startIndex}
+      />
+    );
   }, []);
 
-  const closeModal = useCallback(() => {
-    setModalChildren(null);
-  }, []);
-
+  const closeModal = useCallback(() => setModalChildren(null), []);
   const handleCancelForm = useCallback(() => {
     setIsFormOpen(false);
     resetFormAndImages();
   }, [resetFormAndImages]);
 
-  // ⚡ PERFORMANS İYİLEŞTİRMESİ: Row Component
   const TableRowComponent = React.memo(({ section }: { section: Section }) => {
     return (
       <tr className="text-center">
@@ -646,7 +531,7 @@ const ProjectYonetimi: React.FC = () => {
         <td className="p-3 border">
           {section.image && section.image.length > 0 ? (
             <div className="relative w-16 h-10 mx-auto rounded overflow-hidden group cursor-pointer" onClick={() => openImageModal(section.image!, 0)}>
-              <MemoizedImageDecoder imageData={section.image[0].imageData} altText="Proje görseli" />
+              <img src={section.image[0].url} alt="Proje görseli" className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-110" loading="lazy" />
               <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                 <span className="text-white text-xs font-semibold">Büyüt</span>
               </div>
@@ -675,10 +560,10 @@ const ProjectYonetimi: React.FC = () => {
           <button
             onClick={() => {
               const currentlyOpen = isFormOpen;
-              setIsFormOpen(!currentlyOpen);
               if (currentlyOpen) {
                 resetFormAndImages();
               }
+              setIsFormOpen(!currentlyOpen);
             }}
             className={`${isFormOpen ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'} text-white px-4 py-2 rounded transition-colors`}
           >
@@ -688,13 +573,9 @@ const ProjectYonetimi: React.FC = () => {
 
         {isFormOpen && (
           <ProjectForm
-            editId={editId}
             onSubmit={handleFormSubmit}
             initialValues={formInitialValues}
-            existingImages={existingImages}
-            filesToUpload={filesToUpload}
-            onImageUpload={handleImageUpload}
-            onRemoveNewImage={handleRemoveNewImage}
+            initialImages={initialImagesForForm}
             onDeleteExistingImage={handleDeleteExistingImage}
             onCancel={handleCancelForm}
           />
@@ -702,7 +583,7 @@ const ProjectYonetimi: React.FC = () => {
 
         <div className="bg-white rounded-xl shadow overflow-x-auto">
           <table className="min-w-full table-auto border-collapse text-sm">
-            <thead className="bg-gray-100 text-gray-700">
+             <thead className="bg-gray-100 text-gray-700">
               <tr>
                 <th className="p-3 border">Başlık</th>
                 <th className="p-3 border">(EN) Başlık</th>
@@ -735,7 +616,6 @@ const ProjectYonetimi: React.FC = () => {
         </div>
       </div>
 
-
       <Modal isOpen={modalChildren !== null} onClose={closeModal}>
         {modalChildren}
       </Modal>
@@ -744,4 +624,3 @@ const ProjectYonetimi: React.FC = () => {
 };
 
 export default ProjectYonetimi;
-

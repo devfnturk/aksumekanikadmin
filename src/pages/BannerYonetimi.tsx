@@ -1,21 +1,20 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import Layout from '../components/Layout';
 import api from '../api';
-import pako from 'pako';
 import { useFormik } from 'formik';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
-// MODÜLER YAPI İÇİN GEREKLİ IMPORTLAR
 import Modal from '../components/Modal';
 import TextModalContent from '../components/TextModalContent';
 import ImageModalContent from '../components/ImageModalContent';
 import { useLoading } from '../contexts/LoadingContext';
 
-// Tipler ve yardımcı fonksiyonlar
+// Tipler
 type Section = {
   id: string;
-  image?: { imageData: string }[];
+  image?: { id: string; url: string; }[];
+  imageUrls: string[];
   title: string;
   description: string;
   tag: string;
@@ -26,43 +25,57 @@ type Section = {
   enTag: string;
 };
 
-export function decodeImage(imageData: string): string {
-  try {
-    const binary = atob(imageData);
-    const len = binary.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
-    const decompressed = pako.inflate(bytes);
-    let result = '';
-    for (let i = 0; i < decompressed.length; i += 0x8000) {
-      result += String.fromCharCode.apply(
-        null,
-        Array.from(decompressed.subarray(i, i + 0x8000))
-      );
-    }
-    return `data:image/jpeg;base64,${btoa(result)}`;
-  } catch (err) {
-    console.error('Decode error:', err);
-    return '';
-  }
-}
+// *** YENİ: Google Drive linklerini dönüştürmek için yardımcı fonksiyonlar ***
 
-const dataURLToFile = (dataUrl: string) => {
-  const arr = dataUrl.split(',');
-  const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-  const bstr = atob(arr[1]);
-  let n = bstr.length;
-  const u8arr = new Uint8Array(n);
-  while (n--) u8arr[n] = bstr.charCodeAt(n);
-  return new File([u8arr], 'image.jpg', { type: mime });
+/**
+ * Paylaşılan Google Drive linkini (örn: /file/d/.../view)
+ * thumbnail linkine (örn: /thumbnail?id=...) dönüştürür.
+ * @param {string} url - Dönüştürülecek Google Drive URL'si.
+ * @returns {string} Dönüştürülmüş thumbnail URL'si veya orijinal URL.
+ */
+const convertToThumbnail = (url: string): string => {
+  if (!url) return '';
+  // Eğer link zaten istediğimiz formatta değilse işlem yap
+  if (url.includes('drive.google.com/file/d/')) {
+    const match = url.match(/d\/(.*?)\//); // ID'yi yakalamak için Regex
+    if (match && match[1]) {
+      const fileId = match[1];
+      return `https://drive.google.com/thumbnail?id=${fileId}&sz=s1920`;
+    }
+  }
+  // Eğer link zaten thumbnail formatında veya başka bir linkse, olduğu gibi bırak
+  return url;
 };
 
-const truncateText = (text: string | undefined, maxLength: number = 50) => {
+/**
+ * Thumbnail linkini tekrar kullanıcı dostu paylaşılan link formatına çevirir.
+ * Bu, düzenleme formunda gösterim için kullanılır.
+ * @param {string} url - Dönüştürülecek thumbnail URL'si.
+ * @returns {string} Paylaşılabilir 'view' URL'si veya orijinal URL.
+ */
+const convertToViewLink = (url: string): string => {
+  if (!url) return '';
+  if (url.includes('drive.google.com/thumbnail?id=')) {
+    try {
+      const urlObject = new URL(url);
+      const fileId = urlObject.searchParams.get('id');
+      if (fileId) {
+        return `https://drive.google.com/file/d/${fileId}/view`;
+      }
+    } catch (error) {
+        // Geçersiz URL durumunda orijinal URL'i döndür
+        return url;
+    }
+  }
+  return url;
+};
+
+
+const truncateText = (text: string | undefined, maxLength: number = 50): string => {
   if (!text) return '';
   return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 };
 
-// BannerRow bileşeni
 const BannerRow = React.memo(({ section, onToggle, onEdit, onDelete, onOpenTextModal, onOpenImageModal }: {
   section: Section;
   onToggle: (section: Section) => void;
@@ -71,10 +84,7 @@ const BannerRow = React.memo(({ section, onToggle, onEdit, onDelete, onOpenTextM
   onOpenTextModal: (content: string) => void;
   onOpenImageModal: (imageUrls: string[], startIndex: number) => void;
 }) => {
-  const decodedImageUrls = useMemo(() => {
-    // section.image varsa, her bir imageData'yı decode et. Hata durumunda boş stringleri filtrele.
-    return section.image?.map(img => decodeImage(img.imageData)).filter(Boolean) ?? [];
-  }, [section.image]);
+  const imageUrls = section.imageUrls || [];
 
   return (
     <tr className="text-center">
@@ -91,16 +101,13 @@ const BannerRow = React.memo(({ section, onToggle, onEdit, onDelete, onOpenTextM
         </span>
       </td>
       <td className="p-3 border">
-        {decodedImageUrls.length > 0 ? (
+        {imageUrls.length > 0 ? (
           <div className="relative group inline-block">
-            {/* Sadece ilk resmi thumbnail olarak gösteriyoruz */}
-            <img src={decodedImageUrls[0]} loading="lazy" alt="banner" className="h-20 w-20 object-cover rounded-md cursor-pointer"
-              onClick={() => onOpenImageModal(decodedImageUrls, 0)} />
-
+            <img src={imageUrls[0]} loading="lazy" alt="banner" className="h-20 w-20 object-cover rounded-md cursor-pointer"
+              onClick={() => onOpenImageModal(imageUrls, 0)} />
             <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-              onClick={() => onOpenImageModal(decodedImageUrls, 0)}>
-              {/* Kullanıcıya kaç resim olduğunu belirtmek daha iyi bir deneyim sunar */}
-              Büyüt ({decodedImageUrls.length})
+              onClick={() => onOpenImageModal(imageUrls, 0)}>
+              Büyüt ({imageUrls.length})
             </div>
           </div>
         ) : (
@@ -118,11 +125,11 @@ const BannerRow = React.memo(({ section, onToggle, onEdit, onDelete, onOpenTextM
   );
 });
 
+
 const BannerYonetimi: React.FC = () => {
   const [sections, setSections] = useState<Section[]>([]);
   const [editId, setEditId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [imageBase64, setImageBase64] = useState<string>('');
   const [modalChildren, setModalChildren] = useState<React.ReactNode | null>(null);
 
   const { showLoading, hideLoading } = useLoading();
@@ -131,7 +138,11 @@ const BannerYonetimi: React.FC = () => {
     showLoading();
     try {
       const res = await api.get('/banners');
-      setSections(res.data);
+      const normalizedData = res.data.map((section: any) => ({
+        ...section,
+        imageUrls: section.image ? section.image.map((img: { url: string }) => img.url) : [],
+      }));
+      setSections(normalizedData);
     } catch (err: any) {
       console.error('Veri çekme hatası', err);
     } finally {
@@ -145,16 +156,13 @@ const BannerYonetimi: React.FC = () => {
 
   const formik = useFormik({
     initialValues: {
-      title: '', link: '', isActive: true, description: '', tag: '',
-      enTitle: '', enDescription: '', enTag: '',
+      title: '', description: '', tag: '', link: '', isActive: true,
+      enTitle: '', enDescription: '', enTag: '', imageUrl: '',
     },
     onSubmit: async (values, { resetForm }) => {
       const result = await Swal.fire({
         title: editId ? 'Afiş güncellensin mi?' : 'Yeni afiş eklensin mi?',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Evet',
-        cancelButtonText: 'Hayır',
+        icon: 'warning', showCancelButton: true, confirmButtonText: 'Evet', cancelButtonText: 'Hayır',
         buttonsStyling: false,
         customClass: {
           actions: 'flex justify-center gap-4',
@@ -166,42 +174,45 @@ const BannerYonetimi: React.FC = () => {
       if (result.isConfirmed) {
         showLoading();
         try {
-          const formData = new FormData();
-          const requestObject = {
-            title: values.title, link: values.link, isActive: values.isActive,
-            description: values.description, tag: values.tag,
-            enTitle: values.enTitle, enDescription: values.enDescription, enTag: values.enTag,
+          // *** GÜNCELLENDİ: URL'yi göndermeden önce thumbnail formatına çeviriyoruz. ***
+          const thumbnailUrl = convertToThumbnail(values.imageUrl);
+
+          const payload = {
+            title: values.title,
+            description: values.description,
+            tag: values.tag,
+            link: values.link,
+            isActive: values.isActive,
+            enTitle: values.enTitle,
+            enDescription: values.enDescription,
+            enTag: values.enTag,
+            imageUrls: thumbnailUrl ? [thumbnailUrl] : [], // Dönüştürülmüş URL'yi diziye koy
           };
-          formData.append('request', new Blob([JSON.stringify(requestObject)], { type: 'application/json' }));
-          if (imageBase64) formData.append('files', dataURLToFile(imageBase64));
 
           if (editId) {
-            await api.put(`/banners/${editId}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            await api.put(`/banners/${editId}`, payload);
           } else {
-            await api.post('/banners', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            await api.post('/banners', payload);
           }
+
           Swal.fire({
-            title: 'Başarılı!', text: editId ? 'Afiş güncellendi.' : 'Afiş eklendi.',
-            icon: 'success', showConfirmButton: true,
-            customClass: {
-              actions: 'flex justify-center gap-4',
-              confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
-            },
+            title: 'Başarılı!',
+            text: editId ? 'Afiş güncellendi.' : 'Afiş eklendi.',
+            icon: 'success',
+            customClass: { confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700' },
           });
+
           fetchSections();
           resetForm();
-          setImageBase64('');
           setEditId(null);
           setIsFormOpen(false);
         } catch (err: any) {
           console.error(err);
           Swal.fire({
-            title: 'Hata!', text: err.response.data.message,
-            icon: 'error', showConfirmButton: true,
-            customClass: {
-              actions: 'flex justify-center gap-4',
-              confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700',
-            },
+            title: 'Hata!',
+            text: err.response?.data?.message || 'Bir hata oluştu.',
+            icon: 'error',
+            customClass: { confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700' },
           });
         } finally {
           hideLoading();
@@ -220,13 +231,15 @@ const BannerYonetimi: React.FC = () => {
       enTitle: section.enTitle || '',
       enDescription: section.enDescription || '',
       enTag: section.enTag || '',
+      // *** GÜNCELLENDİ: Thumbnail URL'sini forma koyarken kullanıcı dostu view linkine çeviriyoruz. ***
+      imageUrl: convertToViewLink(section.imageUrls?.[0] || ''),
     });
-    setImageBase64(section.image?.[0]?.imageData ? decodeImage(section.image[0].imageData) : '');
     setEditId(section.id);
     setIsFormOpen(true);
     window.scrollTo(0, 0);
   }, [formik]);
 
+  // ... (handleDelete, toggleActiveStatus ve diğer fonksiyonlar aynı kalabilir)
   const handleDelete = useCallback(async (id: string) => {
     const result = await Swal.fire({
       title: 'Afiş silinsin mi?', text: 'Bu işlem geri alınamaz!',
@@ -251,7 +264,7 @@ const BannerYonetimi: React.FC = () => {
       } catch (err: any) {
         console.error(err);
         Swal.fire({
-          title: 'Hata!', text: err.response.data.message, icon: 'error', showConfirmButton: true,
+          title: 'Hata!', text: err.response?.data?.message || 'Bir hata oluştu.', icon: 'error', showConfirmButton: true,
           customClass: { actions: 'flex justify-center gap-4', confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700' },
         });
       } finally {
@@ -275,28 +288,20 @@ const BannerYonetimi: React.FC = () => {
     if (result.isConfirmed) {
       showLoading();
       try {
-        const formData = new FormData();
-        const requestObject = {
-          title: section.title, description: section.description, tag: section.tag,
-          link: section.link, isActive: !section.isActive, enTitle: section.enTitle,
-          enDescription: section.enDescription, enTag: section.enTag,
+        const payload = {
+            ...section,
+            isActive: !section.isActive,
         };
-        formData.append('request', new Blob([JSON.stringify(requestObject)], { type: 'application/json' }));
-        if (section.image?.[0]?.imageData) {
-          formData.append('files', dataURLToFile(decodeImage(section.image[0].imageData)));
-        } else {
-          formData.append('files', new Blob([]));
-        }
-        await api.put(`/banners/${section.id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+        await api.put(`/banners/${section.id}`, payload);
         Swal.fire({
-          title: 'Başarılı!', text: 'Afiş güncellendi.', icon: 'success', showConfirmButton: true,
+          title: 'Başarılı!', text: 'Afiş durumu güncellendi.', icon: 'success', showConfirmButton: true,
           customClass: { actions: 'flex justify-center gap-4', confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700' },
         });
         fetchSections();
       } catch (err: any) {
         console.error(err);
         Swal.fire({
-          title: 'Hata!', text: err.response.data.message, icon: 'error', showConfirmButton: true,
+          title: 'Hata!', text: err.response?.data?.message || 'Bir hata oluştu.', icon: 'error', showConfirmButton: true,
           customClass: { actions: 'flex justify-center gap-4', confirmButton: 'bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700' },
         });
       } finally {
@@ -304,15 +309,6 @@ const BannerYonetimi: React.FC = () => {
       }
     }
   }, [fetchSections, showLoading, hideLoading]);
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setImageBase64(reader.result as string);
-      reader.readAsDataURL(file);
-    }
-  };
 
   const openTextModal = useCallback((content: string) => {
     setModalChildren(<TextModalContent title="Detaylı İçerik" content={content} />);
@@ -332,6 +328,7 @@ const BannerYonetimi: React.FC = () => {
     setModalChildren(null);
   }, []);
 
+
   return (
     <Layout>
       <div className="p-6 space-y-6">
@@ -341,7 +338,6 @@ const BannerYonetimi: React.FC = () => {
             onClick={() => {
               formik.resetForm();
               setEditId(null);
-              setImageBase64('');
               setIsFormOpen((prev) => !prev);
             }}
             className="bg-green-600 text-white px-4 py-2 rounded"
@@ -360,13 +356,19 @@ const BannerYonetimi: React.FC = () => {
               <input type="text" name="enTitle" value={formik.values.enTitle} onChange={formik.handleChange} className="w-full border rounded-md p-2" placeholder="Başlık (EN)" />
               <textarea name="enDescription" value={formik.values.enDescription} onChange={formik.handleChange} className="w-full border rounded-md p-2 md:col-span-2" placeholder="Açıklama (EN)" />
               <input type="text" name="link" value={formik.values.link} onChange={formik.handleChange} className="w-full border rounded-md p-2" placeholder="Link" />
-              <select name="isActive" value={formik.values.isActive.toString()} onChange={formik.handleChange} className="w-full border rounded-md p-2">
+              <input type="text" name="imageUrl" value={formik.values.imageUrl} onChange={formik.handleChange} className="w-full border rounded-md p-2" placeholder="Google Drive Görsel URL" />
+              <select name="isActive" value={formik.values.isActive.toString()} onChange={(e) => formik.setFieldValue('isActive', e.target.value === 'true')} className="w-full border rounded-md p-2">
                 <option value="true">Aktif</option>
                 <option value="false">Pasif</option>
               </select>
-              <input type="file" name="image" accept="image/*" onChange={handleImageUpload} className="md:col-span-2" />
-              {imageBase64 && <img src={imageBase64} alt="Yüklenen görsel" className="h-32 mt-2 rounded object-cover" />}
             </div>
+            {formik.values.imageUrl && (
+              <div className="mt-4">
+                <p className="text-sm font-medium text-gray-700">Görsel Önizlemesi:</p>
+                {/* Önizlemeyi de thumbnail üzerinden yapalım ki hızlı yüklensin */}
+                <img src={convertToThumbnail(formik.values.imageUrl)} alt="Yüklenen görsel" className="h-32 mt-2 rounded object-cover" />
+              </div>
+            )}
             <div className="text-right">
               <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">
                 {editId ? 'Güncelle' : 'Kaydet'}
@@ -379,29 +381,17 @@ const BannerYonetimi: React.FC = () => {
           <table className="min-w-full table-auto border-collapse text-sm">
             <thead className="bg-gray-100 text-gray-700">
               <tr>
-                <th className="p-3 border">Etiket</th>
-                <th className="p-3 border">(EN) Etiket</th>
-                <th className="p-3 border">Başlık</th>
-                <th className="p-3 border">(EN) Başlık</th>
-                <th className="p-3 border">Açıklama</th>
-                <th className="p-3 border">(EN) Açıklama</th>
-                <th className="p-3 border">Link</th>
-                <th className="p-3 border">Durum</th>
-                <th className="p-3 border">Görsel</th>
-                <th className="p-3 border">İşlemler</th>
+                <th className="p-3 border">Etiket</th><th className="p-3 border">(EN) Etiket</th>
+                <th className="p-3 border">Başlık</th><th className="p-3 border">(EN) Başlık</th>
+                <th className="p-3 border">Açıklama</th><th className="p-3 border">(EN) Açıklama</th>
+                <th className="p-3 border">Link</th><th className="p-3 border">Durum</th>
+                <th className="p-3 border">Görsel</th><th className="p-3 border">İşlemler</th>
               </tr>
             </thead>
             <tbody>
               {sections.map((section) => (
-                <BannerRow
-                  key={section.id}
-                  section={section}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
-                  onToggle={toggleActiveStatus}
-                  onOpenTextModal={openTextModal}
-                  onOpenImageModal={openImageModal}
-                />
+                <BannerRow key={section.id} section={section} onEdit={handleEdit} onDelete={handleDelete}
+                  onToggle={toggleActiveStatus} onOpenTextModal={openTextModal} onOpenImageModal={openImageModal} />
               ))}
             </tbody>
           </table>
@@ -416,3 +406,4 @@ const BannerYonetimi: React.FC = () => {
 };
 
 export default BannerYonetimi;
+
