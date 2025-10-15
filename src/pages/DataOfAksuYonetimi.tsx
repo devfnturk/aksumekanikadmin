@@ -200,11 +200,10 @@ const DataOfAksuYonetimi: React.FC = () => {
       enTitle,
       isActive,
     };
-
     try {
       if (editId !== null) {
         const updatedSection = { id: editId, ...sectionData };
-        await api.post(`/data`, updatedSection);
+        await api.put(`/data/${editId}`, sectionData);
 
         setSections((prev) =>
           prev.map((section) =>
@@ -223,9 +222,9 @@ const DataOfAksuYonetimi: React.FC = () => {
 
         setEditId(null);
       } else {
-        const newSectionTemp = { id: Date.now().toString(), ...sectionData };
+        const newSectionTemp = {...sectionData };
         const response = await api.post('/data', newSectionTemp);
-        setSections((prev) => [...prev, { ...newSectionTemp, id: response.data.id || newSectionTemp.id }]);
+        setSections((prev) => [...prev, { ...newSectionTemp, id: response.data.id }]);
 
         Swal.fire({
           title: 'Başarılı!',
