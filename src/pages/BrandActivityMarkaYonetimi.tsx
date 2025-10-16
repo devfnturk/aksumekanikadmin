@@ -21,6 +21,7 @@ type Section = {
   isActive: boolean;
   enTitle: string;
   enDescription: string;
+  order:number;
 };
 
 // *** YENİ: Google Drive linklerini dönüştürmek için yardımcı fonksiyonlar ***
@@ -86,16 +87,17 @@ const BrandActivityAreasRow = React.memo(({ section, onToggle, onEdit, onDelete,
 
   return (
     <tr className="text-center">
-      <td className="p-3 border cursor-pointer hover:bg-gray-50" onDoubleClick={() => section.title && onOpenTextModal(section.title)}>{truncateText(section.title)}</td>
-      <td className="p-3 border cursor-pointer hover:bg-gray-50" onDoubleClick={() => section.enTitle && onOpenTextModal(section.enTitle)}>{truncateText(section.enTitle)}</td>
-      <td className="p-3 border cursor-pointer hover:bg-gray-50" onDoubleClick={() => section.description && onOpenTextModal(section.description)}>{truncateText(section.description)}</td>
-      <td className="p-3 border cursor-pointer hover:bg-gray-50" onDoubleClick={() => section.enDescription && onOpenTextModal(section.enDescription)}>{truncateText(section.enDescription)}</td>
-      <td className="p-3 border">
+      <td className="p-3 border text-left whitespace-nowrap cursor-pointer hover:bg-gray-50">{section.order}</td>
+      <td className="p-3 border text-left whitespace-nowrap cursor-pointer hover:bg-gray-50" onDoubleClick={() => section.title && onOpenTextModal(section.title)}>{truncateText(section.title)}</td>
+      <td className="p-3 border text-left whitespace-nowrap cursor-pointer hover:bg-gray-50" onDoubleClick={() => section.enTitle && onOpenTextModal(section.enTitle)}>{truncateText(section.enTitle)}</td>
+      <td className="p-3 border text-left whitespace-nowrap cursor-pointer hover:bg-gray-50" onDoubleClick={() => section.description && onOpenTextModal(section.description)}>{truncateText(section.description)}</td>
+      <td className="p-3 border text-left whitespace-nowrap cursor-pointer hover:bg-gray-50" onDoubleClick={() => section.enDescription && onOpenTextModal(section.enDescription)}>{truncateText(section.enDescription)}</td>
+      <td className="p-3 border text-left whitespace-nowrap cursor-pointer hover:bg-gray-50">
         <span className={section.isActive ? 'text-green-600 font-semibold' : 'text-red-500'}>
           {section.isActive ? 'Aktif' : 'Pasif'}
         </span>
       </td>
-      <td className="p-3 border">
+      <td className="p-3 border text-left whitespace-nowrap cursor-pointer hover:bg-gray-50">
         {imageUrls.length > 0 ? (
           <div className="relative group inline-block">
             <img src={imageUrls[0]} loading="lazy" alt="banner" className="h-20 w-20 object-cover rounded-md cursor-pointer"
@@ -109,7 +111,7 @@ const BrandActivityAreasRow = React.memo(({ section, onToggle, onEdit, onDelete,
           <span>Görsel Yok</span>
         )}
       </td>
-      <td className="p-3 border space-x-2">
+      <td className="p-3 border text-left whitespace-nowrap cursor-pointer hover:bg-gray-50">
         <button onClick={() => onToggle(section)} className={`${section.isActive ? 'bg-red-500' : 'bg-green-500'} text-white px-3 py-1 rounded hover:opacity-90`}>
           {section.isActive ? 'Pasifleştir' : 'Aktifleştir'}
         </button>
@@ -152,7 +154,7 @@ const BrandActivityMarkaYonetimi: React.FC = () => {
   const formik = useFormik({
     initialValues: {
       title: '', description: '', link: '', isActive: true,
-      enTitle: '', enDescription: '', imageUrl: '',
+      enTitle: '', enDescription: '', imageUrl: '',order:0
     },
     onSubmit: async (values, { resetForm }) => {
       const result = await Swal.fire({
@@ -180,6 +182,7 @@ const BrandActivityMarkaYonetimi: React.FC = () => {
             enTitle: values.enTitle,
             enDescription: values.enDescription,
             imageUrls: thumbnailUrl ? [thumbnailUrl] : [], // Dönüştürülmüş URL'yi diziye koy
+            order:values.order,
           };
 
           if (editId) {
@@ -224,6 +227,7 @@ const BrandActivityMarkaYonetimi: React.FC = () => {
       enDescription: section.enDescription || '',
       // *** GÜNCELLENDİ: Thumbnail URL'sini forma koyarken kullanıcı dostu view linkine çeviriyoruz. ***
       imageUrl: convertToViewLink(section.imageUrls?.[0] || ''),
+      order:section.order,
     });
     setEditId(section.id);
     setIsFormOpen(true);
@@ -340,6 +344,7 @@ const BrandActivityMarkaYonetimi: React.FC = () => {
         {isFormOpen && (
           <form onSubmit={formik.handleSubmit} className="bg-white p-6 rounded-xl shadow space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input type="number" name="order" value={formik.values.order} onChange={formik.handleChange} className="w-full border rounded-md p-2" placeholder="Sıra" />
               <input type="text" name="title" value={formik.values.title} onChange={formik.handleChange} className="w-full border rounded-md p-2" placeholder="Başlık" />
               <textarea name="description" value={formik.values.description} onChange={formik.handleChange} className="w-full border rounded-md p-2 md:col-span-2" placeholder="Açıklama" />
               <input type="text" name="enTitle" value={formik.values.enTitle} onChange={formik.handleChange} className="w-full border rounded-md p-2" placeholder="Başlık (EN)" />
@@ -366,13 +371,14 @@ const BrandActivityMarkaYonetimi: React.FC = () => {
         )}
 
         <div className="bg-white rounded-xl shadow overflow-x-auto">
-          <table className="min-w-full table-auto border-collapse text-sm">
+          <table className="table-auto border-collapse text-sm w-full">
             <thead className="bg-gray-100 text-gray-700">
               <tr>
-                <th className="p-3 border">Başlık</th><th className="p-3 border">(EN) Başlık</th>
-                <th className="p-3 border">Açıklama</th><th className="p-3 border">(EN) Açıklama</th>
-                <th className="p-3 border">Durum</th>
-                <th className="p-3 border">Görsel</th><th className="p-3 border">İşlemler</th>
+                <th className="p-3 border text-left whitespace-nowrap">Sıra</th>
+                <th className="p-3 border text-left whitespace-nowrap">Başlık</th><th className="p-3 border text-left whitespace-nowrap">(EN) Başlık</th>
+                <th className="p-3 border text-left whitespace-nowrap">Açıklama</th><th className="p-3 border text-left whitespace-nowrap">(EN) Açıklama</th>
+                <th className="p-3 border text-left whitespace-nowrap">Durum</th>
+                <th className="p-3 border text-left whitespace-nowrap">Görsel</th><th className="p-3 border text-left whitespace-nowrap">İşlemler</th>
               </tr>
             </thead>
             <tbody>
